@@ -390,13 +390,20 @@ export class DemoEngine {
         if (tp && price >= tp) {
           changed = true
           const payout = round2(mul(p.amount, add(1, div((p.payoutPercent || this.defaultPayout), 100))))
+          const profit = round2(sub(payout, p.amount))
           this.balance = round2(add(this.balance, payout))
+          this.lastTradeResult = 'win'
+          this.lastTradeProfit = profit
+          this.baseAmount = p.amount
           this._toast(`TP hit: ${p.asset} at ${price.toFixed(5)}`, 'success')
           this._sound('win')
-          return { ...p, status: 'win', pnl: round2(sub(payout, p.amount)), exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
+          return { ...p, status: 'win', pnl: profit, exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
         }
         if (sl && price <= sl) {
           changed = true
+          this.lastTradeResult = 'loss'
+          this.lastTradeProfit = -p.amount
+          this.baseAmount = p.amount
           this._toast(`SL hit: ${p.asset} at ${price.toFixed(5)}`, 'error')
           this._sound('loss')
           return { ...p, status: 'loss', pnl: -p.amount, exitPrice: price, closedAt: Date.now(), closeReason: 'sl' }
@@ -406,13 +413,20 @@ export class DemoEngine {
         if (tp && price <= tp) {
           changed = true
           const payout = round2(mul(p.amount, add(1, div((p.payoutPercent || this.defaultPayout), 100))))
+          const profit = round2(sub(payout, p.amount))
           this.balance = round2(add(this.balance, payout))
+          this.lastTradeResult = 'win'
+          this.lastTradeProfit = profit
+          this.baseAmount = p.amount
           this._toast(`TP hit: ${p.asset} at ${price.toFixed(5)}`, 'success')
           this._sound('win')
-          return { ...p, status: 'win', pnl: round2(sub(payout, p.amount)), exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
+          return { ...p, status: 'win', pnl: profit, exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
         }
         if (sl && price >= sl) {
           changed = true
+          this.lastTradeResult = 'loss'
+          this.lastTradeProfit = -p.amount
+          this.baseAmount = p.amount
           this._toast(`SL hit: ${p.asset} at ${price.toFixed(5)}`, 'error')
           this._sound('loss')
           return { ...p, status: 'loss', pnl: -p.amount, exitPrice: price, closedAt: Date.now(), closeReason: 'sl' }
@@ -734,7 +748,7 @@ export class DemoEngine {
         ids.add(t.id)
         return true
       })
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged.slice(-100)))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(merged.slice(0, 100)))
       this._saveState()
     } catch {
       // quota exceeded or private browsing — silently ignore

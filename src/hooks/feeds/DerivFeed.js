@@ -11,7 +11,16 @@
  * Prod: wss://options.autobotsignal.io/ws (via nginx → deriv-proxy container)
  */
 
-const PROXY_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8091'
+// Guards against Chrome Private Network Access permission prompts:
+// Don't try localhost fallback from an HTTPS page — mixed-content WS is blocked,
+// and the connection attempt triggers "access other apps and services" dialogs.
+function getProxyUrl() {
+  const url = import.meta.env.VITE_WS_URL
+  if (url) return url
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  if (isHttps) return null // No fallback on production HTTPS — needs deployed proxy
+  return 'ws://localhost:8091'
+}
 
 export class DerivFeed {
   ws = null
@@ -83,8 +92,10 @@ export class DerivFeed {
   // ── Internal ────────────────────────────────────────────
 
   _connect() {
+    const url = getProxyUrl()
+    if (!url) return // HTTPS without deployed proxy — silently skip
     this.onStatus?.('connecting')
-    try { this.ws = new WebSocket(PROXY_URL) } catch (e) {
+    try { this.ws = new WebSocket(url) } catch (e) {
       this._scheduleReconnect(); return
     }
 

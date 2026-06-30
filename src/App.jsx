@@ -93,6 +93,9 @@ export default function App() {
 
     tabsRef.current.forEach(tab => {
       if (tab.asset !== assetData.name) return
+      // Source-aware guard: prevent Binance ticks from filling Deriv tabs
+      // (e.g., both sources may have an asset named "Bitcoin")
+      if (tab.source && tab.source !== source) return
       const tfMs = TF_MAP[tab.timeframe] || 60000
       const alignedT = Math.floor(now / tfMs) * tfMs
 
@@ -133,6 +136,7 @@ export default function App() {
     if (!assetData) return
     tabsRef.current.forEach(tab => {
       if (tab.asset !== assetData.name) return
+      if (tab.source && tab.source !== source) return
       let store = candleStoreRef.current.get(tab.id)
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
 
@@ -237,9 +241,19 @@ export default function App() {
     try { return localStorage.getItem('autobot_active_tab') || null } catch { return null }
   })
 
-  // Persist tabs on every change
+  // Persist tabs on every change — BUT strip candleHistory/priceHistory
+  // (these are rebuilt from live ticks + history fetch on restore).
+  // Full candle data per tab would bloat localStorage and slow serialization.
   useEffect(() => {
-    try { localStorage.setItem('autobot_tabs', JSON.stringify(tabs)) } catch {}
+    try {
+      const stripped = tabs.map(t => ({
+        id: t.id,
+        asset: t.asset,
+        timeframe: t.timeframe,
+        source: t.source,
+      }))
+      localStorage.setItem('autobot_tabs', JSON.stringify(stripped))
+    } catch {}
   }, [tabs])
   useEffect(() => {
     try { activeTabId ? localStorage.setItem('autobot_active_tab', activeTabId) : localStorage.removeItem('autobot_active_tab') } catch {}
@@ -584,6 +598,7 @@ export default function App() {
     const newTab = {
       id: `tab-${Date.now()}`,
       asset: name,
+      source: asset?.source || 'deriv',
       priceHistory: [],
       candleHistory: [],
       timeframe: '1m',

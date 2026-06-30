@@ -69,6 +69,8 @@ async function fetchExchangeInfo() {
     }
   } catch (err) {
     console.error('[binance-proxy] Failed to fetch exchangeInfo:', err.message);
+    // Set empty cache so clients don't hang forever waiting for symbols
+    if (!cachedSymbols) cachedSymbols = [];
     // Retry after 30s
     setTimeout(fetchExchangeInfo, 30000);
   }
@@ -226,7 +228,9 @@ function handleClientMsg(client, data) {
   const type = data.type || '';
 
   if (type === 'get_symbols') {
-    if (!cachedSymbols) cachedSymbols = buildSymbolsResponse();
+    // Don't build from empty data if exchangeInfo hasn't loaded yet.
+    // Clients will receive symbols via broadcast when exchangeInfo completes.
+    if (!cachedSymbols) return
     client.send(JSON.stringify({ type: 'symbols', symbols: cachedSymbols }));
     return;
   }
