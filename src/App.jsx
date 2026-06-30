@@ -110,8 +110,6 @@ export default function App() {
       }
 
       store.set(tab.timeframe, candles)
-      const ready = historyReadyRef.current.get(tab.id)?.has(tab.timeframe)
-      if (!ready) return
       tickSyncPendingRef.current.set(`${tab.id}:${tab.timeframe}`, candles)
       if (!tickSyncRafRef.current) {
         tickSyncRafRef.current = requestAnimationFrame(flushTickSyncs)
