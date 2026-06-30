@@ -1,6 +1,6 @@
 ---
 name: session-2026-06-30-bugs
-description: Bugs found and fixes applied during June 30 session — ALL 7 RESOLVED
+description: All bugs found and fixed during June 30 session — 15 known gotchas + tick pipeline hardening
 metadata:
   type: project
   status: complete
@@ -52,3 +52,72 @@ metadata:
 - **Root cause:** Every 500ms tick called `syncCandlesToTab` → new array spread → full React reconciliation.
 - **Fix:** rAF-based batching. `onDerivAssetTick` writes to `tickSyncPendingRef` and schedules a single `requestAnimationFrame`. `flushTickSyncs` batches all pending tabs into one `setTabs` call. Multiple ticks in the same frame = one React render.
 - **File:** `src/App.jsx:36-59` (rAF batching), `src/App.jsx:124-130` (tick loop)
+
+---
+
+## CLAUDE.md Known Gotchas — All 15 Resolved (June 30 part 3)
+
+### 6 Bugs Fixed This Session
+| # | Bug | Fix |
+|---|-----|-----|
+| 6 | autobot_tabs persisted full candle history | Strip candleHistory/priceHistory before localStorage |
+| 7 | _persist slice(-100) dropped newest entries | slice(0, 100) — correct direction for prepend |
+| 8 | TP/SL didn't update lastTradeResult | Set lastTradeResult/lastTradeProfit/baseAmount in all 4 TP/SL branches |
+| 9 | Completed candle close overwritten | Don't touch old candle close on new period (fixed in 1bca891) |
+| 13 | Dual-source candle store corruption | Tab stores source; handleAssetTick matches name+source |
+| 14 | Binance empty symbols race | get_symbols defers until cachedSymbols ready; failure sets [] |
+| 15 | DerivFeed missing HTTPS guard | getProxyUrl() pattern matching BinanceFeed |
+
+### 9 Previously Fixed
+| # | Bug |
+|---|-----|
+| 1 | Chrome PNA permission prompt |
+| 2 | syncState not called on mount |
+| 3 | Position duration extended on refresh |
+| 4 | Tick guard blocked restored tabs |
+| 5 | flushTickSyncs race condition |
+| 10 | Binance icons rendered as text |
+| 11 | Secrets committed to git history |
+| 12 | git add -A committed artifacts |
+
+---
+
+## Tick Pipeline Hardening (June 30 part 4)
+
+### Root Cause: Per-Client Filtering Defeated
+
+The initial per-client tick filtering implementation was completely bypassed by three layered bugs:
+
+**Bug A: Mass subscription in onSymbols**
+- `useBinanceData.onSymbols` called `feed.subscribe(ALL_441_SYMBOLS)`
+- `useMarketData.onSymbols` called `feed.subscribe(ALL_DERIV_SYMBOLS)`
+- Every client immediately subscribed to everything → per-client filter useless
+- **Fix:** Removed mass subscription. Only `handleAssetSelect` subscribes (1 symbol per tab).
+
+**Bug B: Dynamic upstream subscription in Binance proxy**
+- `connectBinance` used `activeSubs` to decide which symbols to subscribe from Binance
+- If only 1 symbol was in `activeSubs`, proxy only got ticks for 1 symbol
+- After reconnect, unviewed symbols had no Binance data
+- **Fix:** Always subscribe to all 441 pairs from Binance. clientSubs only controls forwarding.
+
+**Bug C: Race window on client connect**
+- New clients had NO `clientSubs` entry → `!subs` was true → ALL ticks forwarded
+- Ticks leaked during the connect → subscribe window
+- **Fix:** Initialize `clientSubs.set(client, new Set())` on connect. Empty set = zero ticks.
+
+**Bug D: Tabs silent after refresh**
+- Tabs restored from localStorage had no subscriptions
+- Auto-open only fired when `tabsRef.current.length === 0`
+- **Fix:** `restoredSubsDone` effect re-subscribes all restored tabs when assets load.
+
+### Deriv Proxy — Same Fixes Applied
+- Added `clientSubs` Map, `sendTick()`, empty init on connect
+- Subscribe/unsubscribe handlers update clientSubs
+- Cleanup on client disconnect/error
+- Verified: R_50 sub → only R_50 ticks arrive (other=0)
+
+### Verified In Production
+- Binance: subscribe BTCUSDT only → BTCUSDT=4, other=0 ✅
+- Deriv: subscribe R_50 only → R_50=2, other=0 ✅
+- Both candle fetches return 3 candles ✅
+- Zero console errors in browser ✅

@@ -4,16 +4,21 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 ## ⚡ NEXT SESSION — Start Here
 
-**Session:** June 30, 2026 — All 15 known bugs resolved. 39/46 gap audit items complete (85%). i18n live (3 languages). Code-split (main bundle 445KB, 45% smaller). 7 backend-dependent features remain deferred.
+**Session:** June 30, 2026 — All 15 bugs resolved. 39/46 gap audit (85%). i18n (3 languages). Code-split (445KB, 45%↓). Tick pipeline hardened — per-client filtering on both proxies, zero polling, zero fake data. 7 backend-dependent features deferred.
 
 ### New This Session (June 30)
-- **All 15 known bugs resolved** — zero open bugs:
-  - #6-9, #13-15: 6 bugs fixed (persistence, TP/SL, HTTPS guards, dual-source, candle data)
-  - #1-5, #10-12: 9 bugs previously fixed (Chrome PNA, syncState, expiry, tick guard, icons, secrets)
-- **Code-split** — main bundle 809KB → 445KB (45% smaller). 7 secondary views lazy-loaded. recharts isolated to AnalyticsView chunk.
-- **i18n infrastructure** — i18next + react-i18next with 3 languages (EN/ES/AR). Language switcher in SettingsModal. ~300 strings across 25+ components. Canvas fillText via ref-based t().
-- **Gap audit** — #29 (Real WebSocket) + #43 (Multi-Language) marked DONE. 39/46 complete (85%).
-- **CLAUDE.md updated** — all bug tables marked FIXED, feature status updated.
+- **6 bugs fixed** (#6-9, #13-15) — all 15 known gotchas now FIXED (zero open)
+- **Tick stability hardened** — full pipeline audit + 4 root causes fixed:
+  - Per-client tick filtering on BOTH proxies (Binance + Deriv) — client gets only subscribed symbols
+  - Mass subscription removed from onSymbols hooks (was defeating per-client filtering)
+  - Tab subscription restoration on page refresh (restored tabs now receive ticks)
+  - Race window closed (empty clientSubs init on connect)
+  - Polling dead code removed from useWebSocket.js
+  - settled guard reset on disconnect (reconnection re-syncs symbols)
+  - Verified: BTCUSDT sub → only BTCUSDT ticks arrive. R_50 sub → only R_50 ticks.
+- **Code-split** — main bundle 809KB → 445KB (45% smaller). 7 views lazy-loaded.
+- **i18n** — i18next + react-i18next, 3 languages, ~300 strings, language switcher
+- **Gap audit** — #29 (Real WS) + #43 (Multi-Language) DONE. 39/46 (85%)
 
 ### Architecture Decisions (ALL 10 RESOLVED ✅)
 1. Platform: Own broker, demo-only. Other brokers in ATS-Project desktop bot.
@@ -33,13 +38,11 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 **Chart & Analysis (18 features)** — Drawing Tools, 5 Indicators (EMA/BB/SMA/RSI/MACD), VWAP, Volume Profile, Order Book (DOM), Multi-chart Layouts, MTF Overlay, Market Replay, Custom Indicators, Economic Calendar, Market Sentiment, OTC Badge, Candle Countdown, Spread Display, Heatmap, Correlation Matrix, Strategy Backtester, Mobile Responsive
 
-### Remaining Work (9 items — all need backend)
+### Remaining Work (7 items — all need backend)
 | # | Feature | Blocker |
 |---|---------|---------|
 | 25-26 | Account Types, Deposit/Withdrawal | Real account backend |
-| 29 | Real WebSocket | Backend engine |
 | 30-31 | Social Trading, Tournaments | Multi-user backend |
-| 43 | Multi-Language | i18n infrastructure |
 | 44-46 | Auth, Security, Real Execution | Production backend |
 
 **How to resume:** Say "continue" or name any feature above.
