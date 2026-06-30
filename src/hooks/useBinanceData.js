@@ -66,6 +66,10 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
       },
       onStatus: (status) => {
         setConnected(status === 'connected')
+        // Reset settled on disconnect so a reconnection triggers fresh
+        // symbol sync — otherwise the settled guard permanently blocks
+        // onSymbols after the first connection.
+        if (status === 'disconnected') settled = false
       },
       onError: (msg) => console.warn('[Binance]', msg),
     })

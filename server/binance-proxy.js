@@ -82,9 +82,10 @@ let intentionalClose = false;
 let reconnectDelay = 2000;
 const MAX_RECONNECT_DELAY = 30000;
 let reconnectTimer = null;
-let activeSubs = new Set();       // currently subscribed symbols
+let activeSubs = new Set();       // currently subscribed symbols (Binance WS level)
 let cachedSymbols = null;         // symbols response cache
 const frontendClients = new Set();
+const clientSubs = new Map();     // per-client subscriptions: client → Set<symbol>
 const candleRequests = new Map();  // reqId → { resolve, timeout }
 
 // ── Binance REST: fetch klines ──────────────────────────────
@@ -121,11 +122,28 @@ function buildSymbolsResponse() {
   }));
 }
 
-// ── Broadcast to all frontend clients ────────────────────────
+// ── Broadcast to all frontend clients (control messages) ──────
 function broadcast(data) {
   const msg = JSON.stringify(data);
   for (const client of frontendClients) {
     if (client.readyState === WebSocket.OPEN) client.send(msg);
+  }
+}
+
+// ── Send a tick only to clients subscribed to that symbol ─────
+// Without per-client filtering, 441 pairs × 1 tick/sec = 441 msgs/sec
+// PER client — most for symbols the client doesn't care about.
+// With filtering, a client viewing 1-8 tabs gets only 1-8 ticks/sec.
+function sendTick(symbol, price, epoch) {
+  const msg = JSON.stringify({ type: 'tick', symbol, price, epoch });
+  for (const client of frontendClients) {
+    if (client.readyState !== WebSocket.OPEN) continue;
+    const subs = clientSubs.get(client);
+    // If client hasn't explicitly subscribed, send all (backward compat).
+    // Once they subscribe, only send ticks for their symbols.
+    if (!subs || subs.has(symbol)) {
+      client.send(msg);
+    }
   }
 }
 
@@ -204,12 +222,7 @@ function handleBinanceMsg(msg) {
     if (streamName.endsWith('@ticker') && data.c != null) {
       const price = parseFloat(data.c);
       const epoch = Math.floor((data.E || Date.now()) / 1000);
-      broadcast({ type: 'tick', symbol, price, epoch });
-
-      // Update cached symbol prices for get_symbols
-      for (const client of frontendClients) {
-        // Send individual ticks — the feed adapter handles batching
-      }
+      sendTick(symbol, price, epoch);
     }
     return;
   }
@@ -219,7 +232,7 @@ function handleBinanceMsg(msg) {
     const symbol = msg.s.toUpperCase();
     const price = parseFloat(msg.c);
     const epoch = Math.floor((msg.E || Date.now()) / 1000);
-    broadcast({ type: 'tick', symbol, price, epoch });
+    sendTick(symbol, price, epoch);
   }
 }
 
@@ -237,6 +250,10 @@ function handleClientMsg(client, data) {
 
   if (type === 'subscribe' && Array.isArray(data.symbols)) {
     for (const sym of data.symbols) activeSubs.add(sym);
+    // Track per-client subscriptions so ticks only go to interested clients
+    if (!clientSubs.has(client)) clientSubs.set(client, new Set());
+    const csubs = clientSubs.get(client);
+    for (const sym of data.symbols) csubs.add(sym);
     if (binanceWs && binanceWs.readyState === WebSocket.OPEN) {
       const streams = data.symbols.map(s => `${s.toLowerCase()}@ticker`);
       binanceWs.send(JSON.stringify({ method: 'SUBSCRIBE', params: streams, id: Date.now() }));
@@ -246,6 +263,9 @@ function handleClientMsg(client, data) {
 
   if (type === 'unsubscribe' && Array.isArray(data.symbols)) {
     for (const sym of data.symbols) activeSubs.delete(sym);
+    // Remove from per-client subscriptions
+    const csubs = clientSubs.get(client);
+    if (csubs) for (const sym of data.symbols) csubs.delete(sym);
     if (binanceWs && binanceWs.readyState === WebSocket.OPEN) {
       const streams = data.symbols.map(s => `${s.toLowerCase()}@ticker`);
       binanceWs.send(JSON.stringify({ method: 'UNSUBSCRIBE', params: streams, id: Date.now() }));
@@ -299,11 +319,13 @@ wss.on('connection', (client) => {
 
   client.on('close', () => {
     frontendClients.delete(client);
+    clientSubs.delete(client);
     console.log(`[binance-proxy] Client disconnected (${frontendClients.size} remaining)`);
   });
 
   client.on('error', () => {
     frontendClients.delete(client);
+    clientSubs.delete(client);
   });
 });
 

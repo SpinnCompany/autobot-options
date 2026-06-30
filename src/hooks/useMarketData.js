@@ -68,6 +68,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
       },
       onStatus: (status) => {
         setConnected(status === 'connected')
+        if (status === 'disconnected') settled = false
       },
       onError: (msg) => console.warn('[Deriv]', msg),
     })
