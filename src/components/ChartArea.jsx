@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { TrendingUp, TrendingDown, BarChart3, CandlestickChart, Wifi, WifiOff, Settings, X, Shuffle, Zap, ArrowLeftRight, Square, Columns2, Grid2X2, Play, Pause, StopCircle } from 'lucide-react'
 import { TIMEFRAMES, TF_MAP, getAssetColor, computeEMA, computeBollingerBands, computeSMA, computeRSI, computeMACD, computeVolumeProfile, computeVWAP, generateCandleHistory, generateOrderBook } from '../data/mockData'
 import { CanvasChart } from './CanvasChart'
+import AssetIcon from './AssetIcon'
 import SettingsModal from './SettingsModal'
 
 // ── Chart prefs persistence ──
@@ -408,14 +409,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                 position: 'absolute', top: 8, left: 12, zIndex: 10, pointerEvents: 'none',
                 display: 'flex', alignItems: 'center', gap: 10,
               }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: 6,
-                  background: `linear-gradient(135deg, ${assetColor}, ${assetColor}dd)`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, fontWeight: 700, color: '#fff',
-                }}>
-                  {currentAsset?.icon || '◆'}
-                </div>
+                <AssetIcon asset={currentAsset} size={32} style={{ borderRadius: 6, background: `linear-gradient(135deg, ${assetColor}, ${assetColor}dd)` }} />
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                     {selectedAsset}
@@ -537,11 +531,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                   pointerEvents: 'none',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{
-                      width: 14, height: 14, borderRadius: 3, fontSize: 8, fontWeight: 700,
-                      background: tabColor + '22', color: tabColor,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>{assets.find(a => a.name === tab.asset)?.icon || '◆'}</span>
+                    <AssetIcon asset={assets.find(a => a.name === tab.asset)} size={14} style={{ borderRadius: 3, background: tabColor + '22', color: tabColor, fontSize: 8 }} />
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{tab.asset}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

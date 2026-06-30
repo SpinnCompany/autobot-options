@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, ChevronRight, Minus, Plus, X, Check, Divide, Co
 import { DURATIONS, AMOUNT_PRESETS, getAssetColor } from '../data/mockData'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import ConfirmModal from './ConfirmModal'
+import AssetIcon from './AssetIcon'
 
 function fmtTime(remaining) {
   const s = Math.max(0, Math.floor(remaining))
@@ -51,11 +52,7 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
               </svg>
             )
           })()}
-          <span style={{
-            width: 18, height: 18, borderRadius: 4, fontSize: 11, fontWeight: 700,
-            background: (asset?.color || '#666') + '22', color: asset?.color || '#888',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>{asset?.icon || '◆'}</span>
+          <AssetIcon asset={asset} size={18} style={{ borderRadius: 4, background: (asset?.color || '#666') + '22', color: asset?.color || '#888', fontSize: 11 }} />
           <span style={{ fontWeight: 600, fontSize: 12 }}>{pos.asset}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -509,11 +506,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* Header */}
       <div className="trade-panel-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{
-            width: 22, height: 22, borderRadius: 5, fontSize: 11, fontWeight: 700,
-            background: (assetColor + '22'), color: assetColor,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>{currentAsset?.icon || '◆'}</span>
+          <AssetIcon asset={currentAsset} size={22} style={{ borderRadius: 5, background: (assetColor + '22'), color: assetColor, fontSize: 11 }} />
           <h2 style={{ fontSize: 13 }}>{selectedAsset}</h2>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
