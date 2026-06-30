@@ -168,6 +168,10 @@ export const CanvasChart = ({
   const rafId = useRef(0);
   const needsRedraw = useRef(true);
   const frameFnRef = useRef(() => {});
+  // First-render gate: skip ALL animation on initial data arrival.
+  // After the first full frame renders, subsequent ticks use smooth interpolation.
+  // This matches trading-charts' d3.join() enter-vs-update pattern.
+  const firstRenderRef = useRef(true);
 
   /* ── candlesRef — stable ref for hot-path reads, avoids re-creating callbacks every tick ── */
   const candlesRef = useRef(candles);
@@ -190,9 +194,9 @@ export const CanvasChart = ({
     return c.slice(start, Math.min(len, start + effectiveMax + 5));
   }, []);
 
-  /* ── Interpolated candles: smooth slide + OHLC transition (skipped if noSmooth) ── */
+  /* ── Interpolated candles: smooth slide + OHLC transition (skipped on first render) ── */
   const getInterpolatedCandles = useCallback((visible) => {
-    if (noSmooth) return visible;
+    if (noSmooth || firstRenderRef.current) return visible;
     // Full-set slide transition (new candle formed)
     const ct = candlesTransitionRef.current;
     if (ct) {
@@ -1083,6 +1087,8 @@ export const CanvasChart = ({
     }
 
     needsRedraw.current = false;
+    // First render complete — enable smooth interpolation for subsequent updates
+    firstRenderRef.current = false;
 
     /* Snap layout to state for JSX crosshair — only update when values actually change */
     const prevLayout = prevLayoutRef.current;
@@ -1104,7 +1110,7 @@ export const CanvasChart = ({
   /* ── rAF-driven change detection (independent of React render ticks) ── */
   const detectDataChanges = useCallback(() => {
     const candles = candlesRef.current
-    if (candles.length === 0) { interpRef.current = null; lastCandleRef.current = null; return }
+    if (candles.length === 0) { interpRef.current = null; lastCandleRef.current = null; firstRenderRef.current = true; return }
 
     const latest = candles[candles.length - 1]
     const firstT = candles[0]?.t || 0
@@ -1122,6 +1128,7 @@ export const CanvasChart = ({
         lastCandleRef.current = null; interpRef.current = null
         candlesTransitionRef.current = null; prevCandlesRef.current = []
         smoothBoundsRef.current = null
+        firstRenderRef.current = true  // re-enable instant-render gate
         setInitialZoomDone(false)
         dataSnapshotRef.current = { key, length: candles.length, lastT: latest.t }
         needsRedraw.current = true
