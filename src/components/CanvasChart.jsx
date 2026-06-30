@@ -1302,10 +1302,19 @@ export const CanvasChart = ({
   /* ═══════════════ FRAME LOOP (ref-based to avoid self-reference) ═══════════════ */
   const stepFn = useCallback(() => {
     detectDataChanges();   // rAF-driven, independent of React render ticks
-    physicsStep();
-    if (needsRedraw.current) drawFrame();
+    physicsStep();         // let zoom/pan momentum decay naturally
+    // trading-charts pattern: skip rendering when tab is backgrounded.
+    // When the user returns, interpolation timeouts self-correct (clamped t=1).
+    if (!document.hidden && needsRedraw.current) drawFrame();
     rafId.current = requestAnimationFrame(frameFnRef.current);
   }, [detectDataChanges, physicsStep, drawFrame]);
+
+  // Reset interpolation on tab return — prevents stale animation catch-up
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden) { skipAnimRef.current = 2; needsRedraw.current = true; } };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
   /* Keep the ref updated so the rAF callback always calls the latest stepFn */
   useEffect(() => { frameFnRef.current = stepFn; }, [stepFn]);

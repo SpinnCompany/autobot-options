@@ -1,4 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import Big from 'big.js'
+
+// ── Precise arithmetic helpers (trading-charts pattern: big.js for all money math) ──
+const mul = (a, b) => Big(a).times(Big(b)).toNumber()
+const add = (a, b) => Big(a).plus(Big(b)).toNumber()
+const sub = (a, b) => Big(a).minus(Big(b)).toNumber()
+const div = (a, b) => Big(a).div(Big(b)).toNumber()
+const round2 = (n) => parseFloat(Big(n).round(2).toFixed(2))
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -180,7 +188,7 @@ export class DemoEngine {
 
     // Apply immediately
     this.positions = [position, ...this.positions]
-    this.balance -= amt
+    this.balance = round2(sub(this.balance, amt))
 
     this._toast(`${direction.toUpperCase()} ${asset} — $${amt}`, 'success')
     this._sound('click')
@@ -197,10 +205,10 @@ export class DemoEngine {
     const pos = this.positions.find(p => p.id === posId)
     if (!pos || pos.status !== 'open') return false
 
-    const refund = pos.amount * this.earlyCloseRefund
-    const pnl = refund - pos.amount
+    const refund = round2(mul(pos.amount, this.earlyCloseRefund))
+    const pnl = round2(sub(refund, pos.amount))
 
-    this.balance += refund
+    this.balance = round2(add(this.balance, refund))
     this._toast(
       `Closed early — $${refund.toFixed(2)} refund (${Math.round(this.earlyCloseRefund * 100)}%)`,
       'error'
@@ -259,7 +267,7 @@ export class DemoEngine {
     }
 
     this.positions = [position, ...this.positions]
-    this.balance -= pos.amount
+    this.balance = round2(sub(this.balance, pos.amount))
 
     this._toast(`Double Up ${pos.direction.toUpperCase()} ${pos.asset} — $${pos.amount}`, 'success')
     this._sound('click')
@@ -295,14 +303,14 @@ export class DemoEngine {
       return false
     }
 
-    const fee = pos.amount * 0.10
+    const fee = round2(mul(pos.amount, 0.10))
     if (fee > this.balance) {
       this._toast('Insufficient balance for extend fee', 'error')
       return false
     }
 
     // Charge the extension fee
-    this.balance -= fee
+    this.balance = round2(sub(this.balance, fee))
 
     // Extend duration — recalculate expiresAt from now + remaining + extra
     const remainingMs = Math.max(0, pos.expiresAt - Date.now())
@@ -352,11 +360,11 @@ export class DemoEngine {
       if (p.direction === 'call') {
         if (tp && price >= tp) {
           changed = true
-          const payout = p.amount * (1 + (p.payoutPercent || this.defaultPayout) / 100)
-          this.balance += payout
+          const payout = round2(mul(p.amount, add(1, div((p.payoutPercent || this.defaultPayout), 100))))
+          this.balance = round2(add(this.balance, payout))
           this._toast(`TP hit: ${p.asset} at ${price.toFixed(5)}`, 'success')
           this._sound('win')
-          return { ...p, status: 'win', pnl: payout - p.amount, exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
+          return { ...p, status: 'win', pnl: round2(sub(payout, p.amount)), exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
         }
         if (sl && price <= sl) {
           changed = true
@@ -368,11 +376,11 @@ export class DemoEngine {
         // PUT direction
         if (tp && price <= tp) {
           changed = true
-          const payout = p.amount * (1 + (p.payoutPercent || this.defaultPayout) / 100)
-          this.balance += payout
+          const payout = round2(mul(p.amount, add(1, div((p.payoutPercent || this.defaultPayout), 100))))
+          this.balance = round2(add(this.balance, payout))
           this._toast(`TP hit: ${p.asset} at ${price.toFixed(5)}`, 'success')
           this._sound('win')
-          return { ...p, status: 'win', pnl: payout - p.amount, exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
+          return { ...p, status: 'win', pnl: round2(sub(payout, p.amount)), exitPrice: price, closedAt: Date.now(), closeReason: 'tp' }
         }
         if (sl && price >= sl) {
           changed = true
@@ -460,7 +468,7 @@ export class DemoEngine {
     if (amt <= 0) { this._toast('Invalid order amount', 'error'); return false }
     if (amt > this.balance) { this._toast('Insufficient balance for order', 'error'); return false }
     // Reserve the amount from balance
-    this.balance -= amt
+    this.balance = round2(sub(this.balance, amt))
 
     const id = `ord-${Date.now()}`
     const order = {
@@ -489,7 +497,7 @@ export class DemoEngine {
   cancelPendingOrder(orderId) {
     const order = this.pendingOrders.find(o => o.id === orderId)
     if (!order) return false
-    this.balance += order.amount
+    this.balance = round2(add(this.balance, order.amount))
     this.pendingOrders = this.pendingOrders.filter(o => o.id !== orderId)
     this._toast('Order cancelled', 'error')
     this._persist()
@@ -611,9 +619,9 @@ export class DemoEngine {
 
     // Track for martingale / compounding
     this.lastTradeResult = outcome
-    const multiplier = 1 + payoutPercent / 100
-    const payout = outcome === 'win' ? amount * multiplier : 0
-    this.lastTradeProfit = payout - amount  // positive for win, negative for loss
+    const multiplier = add(1, div(payoutPercent, 100))
+    const payout = outcome === 'win' ? round2(mul(amount, multiplier)) : 0
+    this.lastTradeProfit = round2(sub(payout, amount))  // positive for win, negative for loss
     if (outcome === 'win') {
       this.baseAmount = amount
     } else if (this.baseAmount == null) {
@@ -625,14 +633,14 @@ export class DemoEngine {
         ? {
             ...p,
             status: outcome,
-            pnl: payout - amount,
+            pnl: round2(sub(payout, amount)),
             exitPrice: exitPrice ?? p.entryPrice,
             closedAt: Date.now(),
             closeReason: 'expired',
           }
         : p
     )
-    this.balance += payout
+    this.balance = round2(add(this.balance, payout))
 
     this._toast(
       outcome === 'win'
