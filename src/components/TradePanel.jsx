@@ -214,7 +214,9 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
   const [mgStepsOn, setMgStepsOn] = useState(() => {
     try { return JSON.parse(localStorage.getItem('autobot_mg_steps_on') || '[true,true,true,true,true,true,true,true]') } catch { return [true,true,true,true,true,true,true,true] }
   })
-  const [mgStepIndex, setMgStepIndex] = useState(-1)
+  const [mgStepIndex, setMgStepIndex] = useState(() => {
+    try { return parseInt(localStorage.getItem('autobot_mg_step_idx'), 10) || -1 } catch { return -1 }
+  })
 
   // ── D'Alembert state (unit-based step strategy) ──
   const [daEnabled, setDaEnabled] = useState(() => {
@@ -270,18 +272,36 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
   const [cpStepsOn, setCpStepsOn] = useState(() => {
     try { return JSON.parse(localStorage.getItem('autobot_cp_steps_on') || '[true,true,true,true,true]') } catch { return [true,true,true,true,true] }
   })
-  const [cpStepIndex, setCpStepIndex] = useState(-1)
+  const [cpStepIndex, setCpStepIndex] = useState(() => {
+    try { return parseInt(localStorage.getItem('autobot_cp_step_idx'), 10) || -1 } catch { return -1 }
+  })
 
   // ── Pending order state ──
-  const [orderEntryPrice, setOrderEntryPrice] = useState('')
-  const [orderDirection, setOrderDirection] = useState('call')
-  const [orderAmount, setOrderAmount] = useState('100')
-  const [orderDuration, setOrderDuration] = useState(60)
+  const [orderEntryPrice, setOrderEntryPrice] = useState(() => {
+    try { return localStorage.getItem('autobot_order_entry') || '' } catch { return '' }
+  })
+  const [orderDirection, setOrderDirection] = useState(() => {
+    try { return localStorage.getItem('autobot_order_dir') || 'call' } catch { return 'call' }
+  })
+  const [orderAmount, setOrderAmount] = useState(() => {
+    try { return localStorage.getItem('autobot_order_amt') || '100' } catch { return '100' }
+  })
+  const [orderDuration, setOrderDuration] = useState(() => {
+    try { return parseInt(localStorage.getItem('autobot_order_dur'), 10) || 60 } catch { return 60 }
+  })
   const [orderTP, setOrderTP] = useState('')
   const [orderSL, setOrderSL] = useState('')
   const [showEntryOrder, setShowEntryOrder] = useState(false)
   const [showOrderForm, setShowOrderForm] = useState(false)
   const [showRisk, setShowRisk] = useState(false)
+
+  // ── Persist step progress & entry order form ──
+  useEffect(() => { try { localStorage.setItem('autobot_mg_step_idx', String(mgStepIndex)) } catch {} }, [mgStepIndex])
+  useEffect(() => { try { localStorage.setItem('autobot_cp_step_idx', String(cpStepIndex)) } catch {} }, [cpStepIndex])
+  useEffect(() => { try { localStorage.setItem('autobot_order_entry', orderEntryPrice) } catch {} }, [orderEntryPrice])
+  useEffect(() => { try { localStorage.setItem('autobot_order_dir', orderDirection) } catch {} }, [orderDirection])
+  useEffect(() => { try { localStorage.setItem('autobot_order_amt', orderAmount) } catch {} }, [orderAmount])
+  useEffect(() => { try { localStorage.setItem('autobot_order_dur', String(orderDuration)) } catch {} }, [orderDuration])
 
   // Persist helpers — martingale
   const persistMg = (v) => { setMgEnabled(v); try { localStorage.setItem('autobot_mg_enabled', String(v)) } catch {} }

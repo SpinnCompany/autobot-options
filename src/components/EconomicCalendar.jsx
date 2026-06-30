@@ -13,13 +13,15 @@ function fmtCountdown(ms) {
 }
 
 export default function EconomicCalendar() {
-  const [filter, setFilter] = useState('all') // 'all' | 'high' | 'medium' | 'low'
+  const [filter, setFilter] = useState(() => { try { return localStorage.getItem('autobot_ecal_filter') || 'all' } catch { return 'all' } })
   const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [])
+
+  useEffect(() => { try { localStorage.setItem('autobot_ecal_filter', filter) } catch {} }, [filter])
 
   const events = useMemo(() => {
     const all = getUpcomingEvents(7)

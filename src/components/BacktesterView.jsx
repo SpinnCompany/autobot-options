@@ -1,7 +1,16 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Play, RotateCcw } from 'lucide-react'
 import { generateCandleHistory } from '../data/mockData'
 import { runBacktest } from '../engine/BacktestEngine'
+
+const BT_KEY = 'autobot_backtest'
+
+function loadPrefs() {
+  try { const r = localStorage.getItem(BT_KEY); return r ? JSON.parse(r) : {} } catch { return {} }
+}
+function savePrefs(patch) {
+  try { localStorage.setItem(BT_KEY, JSON.stringify({ ...loadPrefs(), ...patch })) } catch {}
+}
 
 const STRATEGIES = [
   { value: 'rsi', label: 'RSI Overbought/Oversold' },
@@ -10,24 +19,35 @@ const STRATEGIES = [
 ]
 
 export default function BacktesterView({ assets }) {
-  const [asset, setAsset] = useState('EUR/USD')
-  const [strategy, setStrategy] = useState('rsi')
-  const [direction, setDirection] = useState('call')
-  const [duration, setDuration] = useState(5) // candles
-  const [amount, setAmount] = useState(100)
-  const [payout, setPayout] = useState(82)
+  const prefs = useMemo(() => loadPrefs(), [])
+
+  const [asset, setAsset] = useState(prefs.asset || 'EUR/USD')
+  const [strategy, setStrategy] = useState(prefs.strategy || 'rsi')
+  const [direction, setDirection] = useState(prefs.direction || 'call')
+  const [duration, setDuration] = useState(prefs.duration || 5)
+  const [amount, setAmount] = useState(prefs.amount || 100)
+  const [payout, setPayout] = useState(prefs.payout || 82)
 
   // Strategy params
-  const [rsiPeriod, setRsiPeriod] = useState(14)
-  const [rsiOversold, setRsiOversold] = useState(30)
-  const [rsiOverbought, setRsiOverbought] = useState(70)
-  const [smaFast, setSmaFast] = useState(9)
-  const [smaSlow, setSmaSlow] = useState(21)
-  const [macdFast, setMacdFast] = useState(12)
-  const [macdSlow, setMacdSlow] = useState(26)
-  const [macdSignal, setMacdSignal] = useState(9)
+  const [rsiPeriod, setRsiPeriod] = useState(prefs.rsiPeriod || 14)
+  const [rsiOversold, setRsiOversold] = useState(prefs.rsiOversold || 30)
+  const [rsiOverbought, setRsiOverbought] = useState(prefs.rsiOverbought || 70)
+  const [smaFast, setSmaFast] = useState(prefs.smaFast || 9)
+  const [smaSlow, setSmaSlow] = useState(prefs.smaSlow || 21)
+  const [macdFast, setMacdFast] = useState(prefs.macdFast || 12)
+  const [macdSlow, setMacdSlow] = useState(prefs.macdSlow || 26)
+  const [macdSignal, setMacdSignal] = useState(prefs.macdSignal || 9)
 
   const [result, setResult] = useState(null)
+
+  // Persist all params on change
+  useEffect(() => {
+    savePrefs({ asset, strategy, direction, duration, amount, payout,
+      rsiPeriod, rsiOversold, rsiOverbought, smaFast, smaSlow,
+      macdFast, macdSlow, macdSignal })
+  }, [asset, strategy, direction, duration, amount, payout,
+      rsiPeriod, rsiOversold, rsiOverbought, smaFast, smaSlow,
+      macdFast, macdSlow, macdSignal])
 
   const candleData = useMemo(() => {
     const assetData = assets.find(a => a.name === asset)

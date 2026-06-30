@@ -11,6 +11,7 @@ const round2 = (n) => parseFloat(Big(n).round(2).toFixed(2))
 // ── Constants ────────────────────────────────────────────────
 
 const STORAGE_KEY = 'autobot_options_history'
+const STATE_KEY = 'autobot_engine_state'
 export const MAX_OPEN = 5
 export const DEFAULT_BALANCE = 10000
 export const DEFAULT_PAYOUT = 82
@@ -48,6 +49,23 @@ export class DemoEngine {
   onStateChange = null   // () => void
   onToast = null         // (message: string, type: string) => void
   onSound = null         // (type: string) => void
+
+  constructor() {
+    this._loadState()
+    // Recalculate expiresAt for open positions — they keep their original
+    // durations but restart their countdown from now on page refresh.
+    // This is generous: the user doesn't lose active trades on refresh.
+    const now = Date.now()
+    for (const pos of this.positions) {
+      if (pos.status === 'open') {
+        // Preserve remaining time if possible, otherwise restart full duration
+        const remainingMs = Math.max(0, (pos._remainingMs || (pos.duration * 1000)))
+        pos.openTime = now
+        pos._remainingMs = remainingMs
+        pos.expiresAt = now + remainingMs
+      }
+    }
+  }
 
   // ── Callback helpers ─────────────────────────────────────
 
@@ -687,9 +705,59 @@ export class DemoEngine {
         return true
       })
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged.slice(-100)))
+      this._saveState()
     } catch {
       // quota exceeded or private browsing — silently ignore
     }
+  }
+
+  _saveState() {
+    try {
+      const now = Date.now()
+      const state = {
+        balance: this.balance,
+        baseAmount: this.baseAmount,
+        lastTradeResult: this.lastTradeResult,
+        lastTradeProfit: this.lastTradeProfit,
+        dailyLossLimit: this.dailyLossLimit,
+        maxPositionPct: this.maxPositionPct,
+        maxDailyTrades: this.maxDailyTrades,
+        minPayoutPct: this.minPayoutPct,
+        newsBlockEnabled: this.newsBlockEnabled,
+        newsBlockLevels: this.newsBlockLevels,
+        dailyTradeCount: this.dailyTradeCount,
+        _tradeDay: this._tradeDay,
+        positions: this.positions.map(p => ({
+          ...p,
+          // Store remaining ms for open positions so we can resume countdown
+          _remainingMs: p.status === 'open' ? Math.max(0, p.expiresAt - now) : undefined,
+        })),
+        pendingOrders: this.pendingOrders,
+      }
+      localStorage.setItem(STATE_KEY, JSON.stringify(state))
+    } catch { /* ignore */ }
+  }
+
+  _loadState() {
+    try {
+      const raw = localStorage.getItem(STATE_KEY)
+      if (!raw) return
+      const s = JSON.parse(raw)
+      if (s.balance != null) this.balance = s.balance
+      if (s.baseAmount != null) this.baseAmount = s.baseAmount
+      if (s.lastTradeResult != null) this.lastTradeResult = s.lastTradeResult
+      if (s.lastTradeProfit != null) this.lastTradeProfit = s.lastTradeProfit
+      if (s.dailyLossLimit != null) this.dailyLossLimit = s.dailyLossLimit
+      if (s.maxPositionPct != null) this.maxPositionPct = s.maxPositionPct
+      if (s.maxDailyTrades != null) this.maxDailyTrades = s.maxDailyTrades
+      if (s.minPayoutPct != null) this.minPayoutPct = s.minPayoutPct
+      if (s.newsBlockEnabled != null) this.newsBlockEnabled = s.newsBlockEnabled
+      if (s.newsBlockLevels != null) this.newsBlockLevels = s.newsBlockLevels
+      if (s.dailyTradeCount != null) this.dailyTradeCount = s.dailyTradeCount
+      if (s._tradeDay != null) this._tradeDay = s._tradeDay
+      if (s.positions) this.positions = s.positions
+      if (s.pendingOrders) this.pendingOrders = s.pendingOrders
+    } catch { /* ignore */ }
   }
 
   _loadHistory() {

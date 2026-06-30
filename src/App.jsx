@@ -201,9 +201,24 @@ export default function App() {
     }
   }, [marketData.assets, binanceData.assets])
 
-  // ── Multi‑tab state ── clean slate on every refresh, no default tab
-  const [tabs, setTabs] = useState([])
-  const [activeTabId, setActiveTabId] = useState(null)
+  // ── Multi‑tab state — persist tabs to localStorage so they survive refresh ──
+  const [tabs, setTabs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('autobot_tabs')
+      return saved ? JSON.parse(saved) : []
+    } catch { return [] }
+  })
+  const [activeTabId, setActiveTabId] = useState(() => {
+    try { return localStorage.getItem('autobot_active_tab') || null } catch { return null }
+  })
+
+  // Persist tabs on every change
+  useEffect(() => {
+    try { localStorage.setItem('autobot_tabs', JSON.stringify(tabs)) } catch {}
+  }, [tabs])
+  useEffect(() => {
+    try { activeTabId ? localStorage.setItem('autobot_active_tab', activeTabId) : localStorage.removeItem('autobot_active_tab') } catch {}
+  }, [activeTabId])
 
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0] || null
 

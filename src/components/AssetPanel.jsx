@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
 import { CATEGORIES } from '../data/mockData'
 
 export default function AssetPanel({ assets, selectedAsset, onSelectAsset, tradeHistory = [], mobileOpen, onCloseMobile }) {
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('All')
+  const [search, setSearch] = useState(() => { try { return localStorage.getItem('autobot_asset_search') || '' } catch { return '' } })
+  const [category, setCategory] = useState(() => { try { return localStorage.getItem('autobot_asset_cat') || 'All' } catch { return 'All' } })
 
   const filteredAssets = useMemo(() => {
     let list = assets
@@ -31,6 +31,10 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
     })
     return stats
   }, [tradeHistory])
+
+  // Persist search + category
+  useEffect(() => { try { localStorage.setItem('autobot_asset_search', search) } catch {} }, [search])
+  useEffect(() => { try { localStorage.setItem('autobot_asset_cat', category) } catch {} }, [category])
 
   return (
     <aside className={`asset-panel ${mobileOpen ? 'mobile-open' : ''}`}>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { Search, Filter, ArrowUpDown, Download, BookOpen, ChevronRight } from 'lucide-react'
 import { updateHistoryNote } from '../data/mockData'
 
@@ -27,11 +27,15 @@ function exportCSV(trades) {
 }
 
 export default function HistoryView({ tradeHistory, storedHistory, onNavigateJournal }) {
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('all') // all, win, loss
-  const [sort, setSort] = useState('newest') // newest, oldest, amount
+  const [search, setSearch] = useState(() => { try { return localStorage.getItem('autobot_hist_search') || '' } catch { return '' } })
+  const [filter, setFilter] = useState(() => { try { return localStorage.getItem('autobot_hist_filter') || 'all' } catch { return 'all' } })
+  const [sort, setSort] = useState(() => { try { return localStorage.getItem('autobot_hist_sort') || 'newest' } catch { return 'newest' } })
   const [expandedId, setExpandedId] = useState(null)
   const [noteDraft, setNoteDraft] = useState('')
+
+  useEffect(() => { try { localStorage.setItem('autobot_hist_search', search) } catch {} }, [search])
+  useEffect(() => { try { localStorage.setItem('autobot_hist_filter', filter) } catch {} }, [filter])
+  useEffect(() => { try { localStorage.setItem('autobot_hist_sort', sort) } catch {} }, [sort])
 
   // Merge live session + stored history, deduplicate by id
   const allHistory = useMemo(() => {
