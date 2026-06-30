@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, TrendingUp, CandlestickChart, BarChart3, Plus } from 'lucide-react'
+import { X, TrendingUp, CandlestickChart, BarChart3, AreaChart, Plus } from 'lucide-react'
 import { TIMEFRAMES, TF_MAP } from '../data/mockData'
 
 const TABS = [
@@ -90,6 +90,7 @@ export default function SettingsModal({
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[
                     { type: 'area', icon: <TrendingUp size={16} />, label: 'Area' },
+                    { type: 'area-split', icon: <AreaChart size={16} />, label: 'Area Split' },
                     { type: 'candlestick', icon: <CandlestickChart size={16} />, label: 'Candles' },
                     { type: 'bar', icon: <BarChart3 size={16} />, label: 'Bar' },
                   ].map(opt => (

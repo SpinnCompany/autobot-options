@@ -378,7 +378,7 @@ export const CanvasChart = ({
       }
       ctx.stroke();
     } else if (chartType === "area") {
-      // Area chart with smooth gradient fill
+      // Basic area chart — amber gradient fill to chart bottom
       ctx.beginPath();
       for (let i = 0; i < displayData.length; i++) {
         const x = px(i);
@@ -400,6 +400,76 @@ export const CanvasChart = ({
         else ctx.lineTo(x, py(safeN(displayData[i].c)));
       }
       ctx.stroke();
+    } else if (chartType === "area-split") {
+      // Split-color area chart — trading-charts style: green/red gradient split at first-price baseline
+      // Area fills from price line down to baseline (not chart bottom)
+      const baselinePrice = safeN(displayData[0].c);
+      const baselineY = py(baselinePrice);
+      const chartTop = m.top;
+      const chartBot = m.top + ch;
+
+      ctx.save();
+      // Clip to chart area so fill doesn't bleed into margins
+      ctx.beginPath(); ctx.rect(m.left, chartTop, cw, ch); ctx.clip();
+
+      // ── Area fill: from price line down to baseline ──
+      ctx.beginPath();
+      for (let i = 0; i < displayData.length; i++) {
+        const x = px(i), y = py(safeN(displayData[i].c));
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      // Close path along baseline back to first point
+      ctx.lineTo(px(displayData.length - 1), baselineY);
+      ctx.lineTo(px(0), baselineY);
+      ctx.closePath();
+
+      // Gradient: green (top) → transparent at baseline → red (bottom)
+      // Matches trading-charts UPDATE_AREA_COLORS with gradientUnits: userSpaceOnUse
+      const baselineRatio = (baselineY - chartTop) / ch; // 0=top, 1=bottom
+      const areaGrad = ctx.createLinearGradient(0, chartTop, 0, chartBot);
+      areaGrad.addColorStop(0, 'rgba(16,185,129,0.22)');
+      areaGrad.addColorStop(Math.max(0.02, baselineRatio - 0.04), 'rgba(16,185,129,0.07)');
+      areaGrad.addColorStop(baselineRatio, 'rgba(128,128,128,0.0)');
+      areaGrad.addColorStop(Math.min(0.98, baselineRatio + 0.04), 'rgba(239,68,68,0.07)');
+      areaGrad.addColorStop(1, 'rgba(239,68,68,0.22)');
+      ctx.fillStyle = areaGrad;
+      ctx.fill();
+
+      // ── Line stroke: directional coloring per segment ──
+      // Matches trading-charts linearGradient stroke: green above baseline, red below
+      ctx.lineWidth = 2;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      for (let i = 1; i < displayData.length; i++) {
+        const prevX = px(i - 1), prevY = py(safeN(displayData[i - 1].c));
+        const curX = px(i), curY = py(safeN(displayData[i].c));
+        const curPrice = safeN(displayData[i].c);
+        const prevPrice = safeN(displayData[i - 1].c);
+        // Color segment based on current price vs baseline
+        // If crossing baseline, split segment at intersection for sharp color change
+        if ((prevPrice >= baselinePrice && curPrice >= baselinePrice) ||
+            (prevPrice < baselinePrice && curPrice < baselinePrice)) {
+          // Entire segment on one side — single color
+          ctx.strokeStyle = curPrice >= baselinePrice
+            ? 'rgba(16,185,129,0.90)' : 'rgba(239,68,68,0.90)';
+          ctx.beginPath(); ctx.moveTo(prevX, prevY); ctx.lineTo(curX, curY); ctx.stroke();
+        } else {
+          // Segment crosses baseline — split at intersection
+          const t = (baselinePrice - prevPrice) / (curPrice - prevPrice);
+          const crossX = prevX + (curX - prevX) * t;
+          const crossY = baselineY;
+          // First half
+          ctx.strokeStyle = prevPrice >= baselinePrice
+            ? 'rgba(16,185,129,0.90)' : 'rgba(239,68,68,0.90)';
+          ctx.beginPath(); ctx.moveTo(prevX, prevY); ctx.lineTo(crossX, crossY); ctx.stroke();
+          // Second half
+          ctx.strokeStyle = curPrice >= baselinePrice
+            ? 'rgba(16,185,129,0.90)' : 'rgba(239,68,68,0.90)';
+          ctx.beginPath(); ctx.moveTo(crossX, crossY); ctx.lineTo(curX, curY); ctx.stroke();
+        }
+      }
+      ctx.restore();
     } else if (chartType === "ohlc") {
       // OHLC bars — creative tick styling with round caps
       const leftEdge = m.left - cWid;
