@@ -61,7 +61,8 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
         settled = true
         const normalized = raw.map(normalizeDerivSymbol).filter(Boolean)
         setAssets(normalized.map(s => ({ ...s, source: 'deriv' })))
-        feed.subscribe(normalized.map(s => s.derivSymbol))
+        // Do NOT subscribe to all symbols here — per-client tick filtering
+        // relies on subscriptions happening only when tabs actually open.
       },
       onCandles: (symbol, candles) => {
         onCandlesRef.current?.(symbol, candles)

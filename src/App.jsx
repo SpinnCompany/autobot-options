@@ -177,6 +177,7 @@ export default function App() {
   const prevDerivLen = useRef(0)
   const prevBinanceLen = useRef(0)
   const autoTabOpened = useRef(false)
+  const restoredSubsDone = useRef(false)   // guards tab subscription restoration
   useEffect(() => {
     const sources = []
     if (marketData.assets.length > 0) {
@@ -228,6 +229,24 @@ export default function App() {
       } else if (fa.derivSymbol) {
         marketData.subscribe([fa.derivSymbol])
         marketData.fetchCandles(fa.derivSymbol, 60, 1440)
+      }
+    }
+
+    // Restore subscriptions for tabs that survived a page refresh via localStorage.
+    // Without this, restored tabs have no active subscriptions and receive zero ticks
+    // until the user manually re-opens each tab.
+    if (!restoredSubsDone.current && sources.length > 0 && tabsRef.current.length > 0) {
+      restoredSubsDone.current = true
+      for (const tab of tabsRef.current) {
+        const asset = sources.find(a => a.name === tab.asset && a.source === tab.source)
+        if (!asset) continue
+        if (asset.source === 'binance' && asset.brokerSymbol) {
+          binanceData.subscribe([asset.brokerSymbol])
+          binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
+        } else if (asset.derivSymbol) {
+          marketData.subscribe([asset.derivSymbol])
+          marketData.fetchCandles(asset.derivSymbol, 60, 1440)
+        }
       }
     }
   }, [marketData.assets, binanceData.assets])

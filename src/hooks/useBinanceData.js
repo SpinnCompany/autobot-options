@@ -59,7 +59,9 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
         settled = true
         const normalized = raw.map(normalizeBinanceSymbol).filter(Boolean)
         setAssets(normalized.map(s => ({ ...s, source: 'binance' })))
-        feed.subscribe(normalized.map(s => s.brokerSymbol))
+        // Do NOT subscribe to all symbols here — per-client tick filtering
+        // relies on subscriptions happening only when tabs actually open.
+        // Each tab open calls binanceData.subscribe([symbol]) in handleAssetSelect.
       },
       onCandles: (symbol, candles) => {
         onCandlesRef.current?.(symbol, candles)

@@ -168,12 +168,11 @@ function connectBinance() {
     broadcast({ type: 'status', status: 'connected' });
     reconnectDelay = 2000;
 
-    // Subscribe to ticker streams when exchangeInfo has loaded.
-    // If not yet loaded, fetchExchangeInfo will subscribe after it completes.
+    // Always subscribe to ALL trading pairs from Binance — the proxy needs
+    // every tick so it can forward them to whichever clients are interested.
+    // Per-client filtering happens in sendTick(), not at the Binance level.
     if (tradingSymbols.length > 0) {
-      const streams = activeSubs.size > 0
-        ? [...activeSubs].map(s => `${s.toLowerCase()}@ticker`)
-        : tradingSymbols.map(s => `${s.toLowerCase()}@ticker`);
+      const streams = tradingSymbols.map(s => `${s.toLowerCase()}@ticker`);
       binanceWs.send(JSON.stringify({ method: 'SUBSCRIBE', params: streams, id: 1 }));
     }
   };
@@ -249,27 +248,18 @@ function handleClientMsg(client, data) {
   }
 
   if (type === 'subscribe' && Array.isArray(data.symbols)) {
-    for (const sym of data.symbols) activeSubs.add(sym);
-    // Track per-client subscriptions so ticks only go to interested clients
+    // Track per-client subscriptions so ticks only go to interested clients.
+    // Binance-level subscription is always all 441 pairs (set at connectBinance).
     if (!clientSubs.has(client)) clientSubs.set(client, new Set());
     const csubs = clientSubs.get(client);
     for (const sym of data.symbols) csubs.add(sym);
-    if (binanceWs && binanceWs.readyState === WebSocket.OPEN) {
-      const streams = data.symbols.map(s => `${s.toLowerCase()}@ticker`);
-      binanceWs.send(JSON.stringify({ method: 'SUBSCRIBE', params: streams, id: Date.now() }));
-    }
     return;
   }
 
   if (type === 'unsubscribe' && Array.isArray(data.symbols)) {
-    for (const sym of data.symbols) activeSubs.delete(sym);
-    // Remove from per-client subscriptions
+    // Remove from per-client subscriptions only
     const csubs = clientSubs.get(client);
     if (csubs) for (const sym of data.symbols) csubs.delete(sym);
-    if (binanceWs && binanceWs.readyState === WebSocket.OPEN) {
-      const streams = data.symbols.map(s => `${s.toLowerCase()}@ticker`);
-      binanceWs.send(JSON.stringify({ method: 'UNSUBSCRIBE', params: streams, id: Date.now() }));
-    }
     return;
   }
 
