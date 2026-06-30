@@ -1,11 +1,13 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
-# Build-time WS URL — inlined into the bundle by Vite.
-# Defaults to empty (demo mode with simulated price feed).
+# Build-time WS URLs — inlined into the bundle by Vite.
+# Defaults to empty (skips connection on HTTPS, falls back to localhost on dev).
 # Set to a real WebSocket URL for live broker data.
 ARG VITE_WS_URL=
 ENV VITE_WS_URL=${VITE_WS_URL}
+ARG VITE_BINANCE_WS_URL=
+ENV VITE_BINANCE_WS_URL=${VITE_BINANCE_WS_URL}
 
 COPY package*.json ./
 RUN npm ci && npm cache clean --force

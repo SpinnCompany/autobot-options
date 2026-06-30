@@ -4,3 +4,16 @@ dist
 .env.production
 .DS_Store
 *.log
+
+# Local development state
+.claude/settings.json
+.claude/scheduled_tasks.lock
+
+# Playwright test artifacts
+.playwright-mcp/
+
+# Local screenshots
+screenshots/
+
+# Scraped broker HTML snapshots (may contain third-party API keys)
+docs/broker-html-snapshots/

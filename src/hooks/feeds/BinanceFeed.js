@@ -11,7 +11,17 @@
  * Prod: wss://options.autobotsignal.io/ws/binance
  */
 
-const PROXY_URL = import.meta.env.VITE_BINANCE_WS_URL || 'ws://localhost:8092'
+const PROXY_URL = import.meta.env.VITE_BINANCE_WS_URL
+
+// Guards against Chrome Private Network Access permission prompts:
+// Don't try localhost fallback from an HTTPS page — mixed-content WS is blocked,
+// and the connection attempt triggers "access other apps and services" dialogs.
+function getProxyUrl() {
+  if (PROXY_URL) return PROXY_URL
+  const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  if (isHttps) return null // No fallback on production HTTPS — needs deployed proxy
+  return 'ws://localhost:8092'
+}
 
 export class BinanceFeed {
   ws = null
@@ -81,8 +91,16 @@ export class BinanceFeed {
   // ── Internal ────────────────────────────────────────────
 
   _connect() {
+    const url = getProxyUrl()
+    if (!url) {
+      // No proxy configured for this environment — silently skip.
+      // This prevents Chrome's Private Network Access permission prompt
+      // when the HTTPS production site has no binance-proxy deployed.
+      this.connected = false
+      return
+    }
     this.onStatus?.('connecting')
-    try { this.ws = new WebSocket(PROXY_URL) } catch (e) {
+    try { this.ws = new WebSocket(url) } catch (e) {
       this._scheduleReconnect(); return
     }
 

@@ -1,0 +1,377 @@
+# AutobotOptions — Professional Demo Trading Platform
+
+You are working on **AutobotOptions**, a standalone professional binary options demo trading terminal. It provides a realistic trading experience with simulated price feeds, multi-asset charting, position management, and trade history — designed as the foundation for a full broker platform.
+
+## ⚡ NEXT SESSION — Start Here
+
+**Session:** June 30, 2026 — UI polished, design system aligned, chart fixes done. 37/46 gap audit items complete (80%).
+
+### Architecture Decisions (ALL 10 RESOLVED ✅)
+1. Platform: Own broker, demo-only. Other brokers in ATS-Project desktop bot.
+2. Demo account model: Unlimited free demo, one-click reset to $10k, no login.
+3. Price feed: Demo engine generates all prices. Real mode deferred.
+4. Real account activation: Demo-only for now.
+5. Order execution: Instant fill at shown price (market maker model).
+6. Chart data source: Demo engine always drives charts.
+7. Regulatory scope: Undecided — build first, compliance later.
+8. Token storage: localStorage encrypted (future).
+9. Demo = Paper: Same thing. UI says "Demo Trading."
+10. Martingale/Compounding: Dual independent strategies, both with auto/manual modes.
+
+### Feature Status — 37/46 Gap Audit Items Complete (80%)
+
+**Trading Engine (19 features)** — DemoEngine, PriceFeedEngine, TP/SL, Martingale, Compounding, Pending Orders, Rollover, Risk Mgmt (5 controls), Trade Journal, Keyboard Shortcuts, Daily P&L, Trade Confirmation, Quick Multipliers, Win Rate Per Asset, CSV Export, Sound Toggle, Position Timer Rings, Asset Quick Stats, Toast Duration, Account Reset
+
+**Chart & Analysis (18 features)** — Drawing Tools, 5 Indicators (EMA/BB/SMA/RSI/MACD), VWAP, Volume Profile, Order Book (DOM), Multi-chart Layouts, MTF Overlay, Market Replay, Custom Indicators, Economic Calendar, Market Sentiment, OTC Badge, Candle Countdown, Spread Display, Heatmap, Correlation Matrix, Strategy Backtester, Mobile Responsive
+
+### Remaining Work (9 items — all need backend)
+| # | Feature | Blocker |
+|---|---------|---------|
+| 25-26 | Account Types, Deposit/Withdrawal | Real account backend |
+| 29 | Real WebSocket | Backend engine |
+| 30-31 | Social Trading, Tournaments | Multi-user backend |
+| 43 | Multi-Language | i18n infrastructure |
+| 44-46 | Auth, Security, Real Execution | Production backend |
+
+**How to resume:** Say "continue" or name any feature above.
+
+## Current Architecture (June 30, 2026 — 80% complete)
+
+```
+autobot-options/
+├── index.html                 # Inter font preload, Vite entry
+├── vite.config.js             # Vite 8 + React 19 + Tailwind CSS 4
+├── public/favicon.svg         # Orange zap logo
+└── src/
+    ├── main.jsx               # React 19 root mount
+    ├── App.jsx                # Main terminal — 4-panel grid, tabs, settings, replay
+    ├── index.css              # PIT-TERMINAL dark theme, 3 breakpoints
+    ├── engine/
+    │   ├── DemoEngine.js      # Trading core: positions, TP/SL, alerts, martingale
+    │   │                      # compounding, pending orders, risk mgmt, rollover/extend
+    │   │                      # trade journal, persistence, React hook wrapper
+    │   ├── PriceFeedEngine.js # 4 market modes (random/trending/volatile/sideways)
+    │   └── BacktestEngine.js  # Strategy backtester (RSI, SMA cross, MACD cross)
+    ├── data/
+    │   ├── mockData.js        # 20 assets, generators, 7 indicators, VWAP, Volume Profile
+    │   │                      # Order Book, TF_MAP, history persistence, constants
+    │   └── economicCalendar.js # 21 events, rolling dates, active event detection
+    ├── hooks/
+    │   ├── useWebSocket.js    # Simulated 500ms tick feed (real WS via VITE_WS_URL)
+    │   ├── useSound.js        # Audio feedback for trade events
+    │   ├── useKeyboardShortcuts.js # Hotkeys (Space=Call, Enter=Put, numbers=presets)
+    │   └── usePushNotifications.js # Browser Notification API wrapper
+    └── components/
+        ├── Sidebar.jsx        # Left nav: 8 sections + footer
+        ├── AssetPanel.jsx     # Search, category filter, sentiment bars, win rates
+        ├── ChartArea.jsx      # Toolbar, settings, multi-chart, indicators, drawing, replay
+        ├── CanvasChart.jsx    # Physics canvas: candles, 5 indicators, VWAP, MTF, VP, DOM
+        │                      # custom indicators, trade markers, zoom/pan, crosshair
+        ├── TradePanel.jsx     # CALL/PUT, TP/SL, martingale, compounding, entry orders
+        │                      # risk mgmt, position cards, extend, journal notes
+        ├── SettingsModal.jsx   # Tabbed settings: Chart / Overlays / Alerts
+        ├── HistoryView.jsx    # Trade history + CSV export, notes
+        ├── AnalyticsView.jsx  # P&L analytics, win rate, pie chart
+        ├── JournalView.jsx    # Annotated positions, searchable
+        ├── EconomicCalendar.jsx # Upcoming events, impact filters, live countdowns
+        ├── HeatmapView.jsx    # Color-coded asset performance grid
+        ├── CorrelationMatrix.jsx # Forex pair Pearson correlation table
+        ├── BacktesterView.jsx # Strategy config + results + equity curve
+        ├── ConfirmModal.jsx   # Styled confirmation dialog
+        └── ToastContainer.jsx # Toast notifications
+```
+
+## Project Identity
+
+| Attribute | Value |
+|-----------|-------|
+| Product | AutobotOptions — Demo Trading Terminal |
+| Stack | Vite 8 + React 19 + Tailwind CSS 4 + Custom Canvas chart |
+| Dev Port | 5173 |
+| Design System | PIT-TERMINAL dark theme (orange brand `#f57b00`) |
+| Font | Plus Jakarta Sans (400–800) from Google Fonts |
+| Parent Workspace | AutoBotWeb (`/home/p/SpinnTask/Kosalley/git/AutoBotWeb/`) |
+
+## Architecture Laws (from AutoBotWeb Governance)
+
+These rules come from the parent project's agent governance system and apply here:
+
+1. **Local-First Development** — Everything runs and is tested locally. `.env` is the sole gate between dev and production. No code path shall bypass env vars to reach production.
+2. **Env-Driven URLs** — ALL `ws://` URLs come from env vars (`VITE_WS_URL`, `VITE_DEMO_WS_URL`). Never hardcode production URLs. Dev defaults to localhost or simulated data.
+3. **Single Source of Truth** — Every data mutation has exactly ONE code path. No REST fallback for WebSocket operations.
+4. **No Direct DB Access** — All data persistence goes through the API (autobot-api :8090). No service connects to MariaDB directly.
+5. **Decoupled Architecture** — Frontend, engine, and API in separate processes, communicating over WS/HTTP.
+6. **Fault Tolerance Over Cleverness** — Explicit error containment, strict interfaces, no silent failures.
+7. **No Fake/Simulated Data** — This is a REAL trading platform. Never seed fake data, simulated prices, or mock candles. Chart shows "Waiting for market data…" until real Deriv data arrives. All prices, candles, and asset data come exclusively from the Deriv WebSocket proxy. No fallback data generators.
+
+## Design System — PIT-TERMINAL
+
+### Color Tokens (use `var(--token)` — NEVER raw hex/rgba)
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--brand` | `#f57b00` | Active states, borders, chart line, accent |
+| `--brand-light` | `#ff9f3d` | Gradients, hover |
+| `--brand-dark` | `#e06c00` | Pressed states |
+| `--bg-base` | `#0a0b0f` | Page background |
+| `--bg-surface` | `#111318` | Panels, sidebar |
+| `--bg-elevated` | `#171a21` | Cards, hover states |
+| `--bg-input` | `#1a1d26` | Form inputs |
+| `--text-primary` | `#e8eaf0` | Headings, main text |
+| `--text-secondary` | `#8b8fa8` | Body text |
+| `--text-muted` | `#5a5e72` | Captions, placeholders |
+| `--success` | `#00c853` | CALL button, wins, profit, bull candles |
+| `--danger` | `#ff1744` | PUT button, losses, bear candles |
+| `--chart-bg` | `#0d0f14` | Chart background |
+
+### Layout Rules
+- `html, body, #root` MUST have `height: 100%; overflow: hidden`
+- 4-column grid: sidebar(56px) asset-panel(300px) chart(1fr) trade-panel(300px)
+- NEVER use `100vh` or `100dvh` — use `height: 100%` or `100vh` only on root
+- Scrollbar: 4px width, `--border-strong` thumb, transparent track
+
+### Type Scale
+- Minimum font size: 11px (NEVER 9px or 10px)
+- Scale: 10, 11, 12, 13, 14, 16, 18, 20, 24
+- Uppercase labels: 11px, `letter-spacing: 0.3-0.5px`
+- ALL font-variant-numeric: tabular-nums for prices, balances, P&L
+
+### Animation
+- Only for state changes (hover, active, transitions)
+- Never decorative
+- Duration: 150ms standard, never over 300ms
+- Hover lift: `translateY(-1px)` max
+
+## Development Rules (NON-NEGOTIABLE)
+
+### Read Before Modify
+- Read the ENTIRE file before any edit
+- Understand imports, dependencies, existing patterns, business logic
+- Never edit blindly from partial context
+
+### Write Whole Files for Vite-Served TSX/JSX
+- When editing files served by Vite HMR, write the ENTIRE file in ONE operation
+- Multiple rapid edits cause Vite to cache stale module exports → "does not provide an export named X"
+- If that error appears: `touch` the file to force Vite re-evaluation, or restart dev server
+- Do NOT keep editing — the issue is Vite's cache, not the source code
+
+### Verify After Every Edit
+- Check imports intact (first 10 lines)
+- Check closing braces intact (last 5 lines)
+- Check exports at expected locations
+- Run `npm run build` for any non-trivial change — zero errors required
+
+### No Emojis — Use Icons
+- **NEVER** use emoji characters in UI text, toast messages, labels, buttons, or anywhere user-facing
+- All icons MUST be from `lucide-react` — import specific icons as needed
+- **Exception:** Country flag emojis are allowed ONLY in forex pair/country displays (e.g., 🇺🇸 for USD, 🇪🇺 for EUR) and in the economic calendar — they serve as visual currency identifiers
+- Replace all other emojis (✅❌🔔🎯📝 etc.) with text or lucide-react icons
+- This applies to: toast messages, chart labels, trade notifications, position cards, push notifications, alert badges, all components
+
+### No Native Browser Dialogs
+- **NEVER** use `alert()`, `confirm()`, `prompt()`, or any native browser dialog
+- Use the custom `ConfirmModal` component (`src/components/ConfirmModal.jsx`) for confirmations
+- Use Toast notifications (`addToast`) for alerts
+- All user feedback must be styled to match the PIT-TERMINAL design system
+
+### No Assumptions
+- Never assume API responses, component behavior, or user intentions
+- Inspect actual code first
+- Check BOTH `message` and `data` fields in API responses
+
+### Real Data Only — No Simulation Fallbacks
+- This is a REAL trading platform — never generate fake prices, candles, or asset data
+- Chart shows "Waiting for market data…" when Deriv proxy is unavailable — do NOT seed mock data
+- All price updates come exclusively from the Deriv WebSocket proxy (`deriv-proxy.js`)
+- `generateCandleHistory()` and `generateInitialAssets()` exist for backtesting ONLY — never wire them into the live data path
+- When adding features, always use real Deriv data paths (`onDerivAssetTick`, `onDerivCandles`, `marketData.fetchCandles`)
+
+### Code Standards
+- 2-space indentation, single quotes, trailing commas
+- Named exports: `export function ComponentName()`
+- PascalCase for component filenames
+- Destructure props in function parameters
+- All prices/numbers use `font-variant-numeric: tabular-nums`
+- Wrap API calls in try/catch with proper error states
+- Include loading, error, and empty states for every data-fetching component
+
+### WebSocket Testing — Real Data Only, No Assumptions
+- **NEVER assume a WebSocket connection works** — test every connection with real data before committing
+- Test procedure for any WS change:
+  1. Verify deriv-proxy is running: `lsof -i :8091`
+  2. Send a real request and inspect the response: `node -e "const ws=new (require('ws'))('ws://localhost:8091'); ws.on('open',()=>ws.send(JSON.stringify({type:'market:candles',symbol:'R_50',granularity:60,count:5}))); ws.on('message',d=>console.log(JSON.parse(d.toString())));"`
+  3. Confirm response structure matches what downstream code expects (type, symbol, candles[].epoch/open/high/low/close)
+  4. Run `npm run build` — zero errors required
+- When Deriv returns new message types (like `auto_list_strategies`), study the response structure BEFORE writing code to consume it
+- All data paths must be traceable end-to-end: Deriv WS → proxy → DerivFeed → useMarketData → App → ChartArea → CanvasChart
+- If data isn't rendering, trace each layer with the browser console before touching code
+
+## Deployment Rules (NON-NEGOTIABLE)
+
+### Production Architecture
+
+```
+GCP Server (34.81.61.52)
+  ├─ nginx (host, :80/:443)
+  │   ├─ /      → autobot-options Docker :8095 (SPA)
+  │   └─ /ws    → deriv-proxy Docker :8096 (WebSocket)
+  ├─ autobot-options  — Vite SPA served by nginx:alpine
+  └─ deriv-proxy      — Node.js WS proxy → Deriv API (wss://ws.derivws.com)
+```
+
+- **Domain:** options.autobotsignal.io (Let's Encrypt SSL, auto-renew)
+- **Repo:** github.com/SpinnCompany/autobot-options
+- **Deploy:** `git push` → SSH to GCP → `git pull` → `docker build` → `docker run`
+- **SPA build arg:** `VITE_WS_URL=wss://options.autobotsignal.io/ws` (REQUIRED for production)
+- **Docker --no-cache:** Required when changing build args (Vite bakes them at build time)
+
+### NEVER — Deployment Anti-Patterns
+
+1. **NEVER add simulation/demo fallback code.** If the deriv-proxy isn't reachable, DEPLOY THE PROXY. Do not seed fake assets, simulated prices, or mock candles. The app shows "Waiting for market data…" until real Deriv data arrives.
+2. **NEVER deploy without deriv-proxy running.** The SPA depends on the proxy for ALL data. Without it the terminal is blank.
+3. **NEVER use cached Docker builds when changing VITE_WS_URL.** Force `--no-cache` or the old URL stays in the bundle.
+4. **NEVER hardcode WebSocket URLs.** Use `VITE_WS_URL` env var (dev default: `ws://localhost:8091`).
+5. **Port 8091 is phpMyAdmin** — deriv-proxy uses internal port 8091 mapped to host port 8096.
+
+### Deploy Checklist
+
+```bash
+# 1. Push code
+cd autobot-options && git push origin main
+
+# 2. Pull on GCP
+ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options && git pull origin main'
+
+# 3. Rebuild deriv-proxy (if server/ changed)
+ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options/server && docker build -t deriv-proxy:latest . && docker stop deriv-proxy && docker rm deriv-proxy && docker run -d --name deriv-proxy --restart unless-stopped --network autobot-network -p 127.0.0.1:8096:8091 deriv-proxy:latest'
+
+# 4. Rebuild SPA with production WS URL
+ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options && docker build --no-cache --build-arg VITE_WS_URL=wss://options.autobotsignal.io/ws -t autobot-options:latest . && docker stop autobot-options && docker rm autobot-options && docker run -d --name autobot-options --restart unless-stopped --network autobot-network -p 8095:80 autobot-options:latest'
+
+# 5. Verify
+curl -sk -o /dev/null -w '%{http_code}' https://options.autobotsignal.io/health  # → 200
+ssh gcp-vps@34.81.61.52 'docker logs deriv-proxy --tail 3'  # → "Deriv connected"
+ssh gcp-vps@34.81.61.52 'docker exec autobot-options grep -c options.autobotsignal.io /usr/share/nginx/html/assets/index-*.js'  # → >0
+```
+
+### Data Flow (production)
+
+```
+Deriv API (wss://ws.derivws.com)
+    ↕
+deriv-proxy.js (Docker, 127.0.0.1:8096)
+    ↕  wss://options.autobotsignal.io/ws (nginx TLS termination)
+    ↕
+Browser (DerivFeed → useMarketData → App.jsx)
+    ├─ onDerivAssetTick → setAssets (asset panel prices)
+    └─ onDerivCandles → syncCandlesToTab (chart OHLC)
+```
+
+## Trade Execution Rules (Trading System Safety)
+
+Changes affecting signal generation, trade execution, position sizing, risk management, or balance calculations REQUIRE:
+- Current Behavior documented
+- Proposed Behavior explained
+- Impact Analysis
+- Failure Modes identified
+- Verification Method specified
+
+### Current Trade Flow (via DemoEngine)
+```
+User clicks CALL/PUT → TradePanel.handleTrade()
+  → Validates: amount > 0, amount ≤ balance, openCount < MAX_OPEN(5)
+  → Risk checks: daily loss limit, max position %, max daily trades,
+                 min payout %, news event blocker
+  → Validation: TP/SL direction relative to CALL/PUT
+  → DemoEngine.placeTrade() deducts balance, creates position
+  → setTimeout fires after duration seconds → _resolvePosition()
+  → 55% win rate, configurable payout (82% default)
+  → TP/SL checked every 500ms tick → auto-close on cross
+  → Pending orders checked every tick → auto-execute on cross
+  → Saves to localStorage trade history (last 100)
+```
+
+## Brokers Reference
+
+The `docs/brokers-websocket-architecture.md` file documents the WebSocket APIs of 6 broker platforms (from the ATS-Project Python desktop bot). This is reference material for future real-broker integration:
+
+| Broker | Protocol | Auth Method | Library |
+|--------|----------|------------|---------|
+| Deriv | JSON-RPC | API token | websocket-client |
+| ExpertOption | Custom JSON | Selenium cookie | websocket-client |
+| IQ Option | Socket.IO-like | SSID cookie | websocket-client |
+| OlympTrade | Custom JSON | Selenium CDP token | websockets (async) |
+| Pocket Option | Socket.IO | Session token | python-socketio |
+| Quotex | Socket.IO v4 | Selenium SSID | websocket-client |
+
+Common patterns: SSL verification disabled on all, auto-reconnect with backoff, subscription-based price streaming, all run in background threads.
+
+### Broker Memory Bank (loaded in context)
+- **[Broker Protocol Study](memory/broker-protocol-study.md)** — Complete synthesis of all 6 broker protocols, data streaming, and trade execution
+- **[Broker Integration Architecture](memory/broker-integration-architecture.md)** — Target architecture, current file listing, Phase 2 status (complete)
+- **[Broker Guidance Protocol](memory/broker-guidance-protocol.md)** — 10 decision points (ALL RESOLVED), feature list, trigger phrases
+- **[Broker Gap Audit](memory/broker-gap-audit.md)** — 46 features vs real brokers — 27 done (59%), 19 remaining
+
+### Broker Guidance Skill
+Before implementing ANY broker integration code, invoke the `broker-guidance` skill. It enforces a protocol: check unresolved decisions → ask user with AskUserQuestion → wait for answer → record decision → then implement. Never assume broker design choices.
+
+## Safety Policies
+
+### NEVER Without Explicit User Approval
+- Revert files, restore backups, checkout old commits
+- Execute `git reset`, `git restore`, `git checkout`
+- Delete files or user work
+- Drop tables, delete data, modify schemas
+- Introduce new frameworks or dependencies
+- Rewrite working systems unnecessarily
+
+### Destructive Action Protocol
+If rollback/restore seems necessary, present:
+1. Problem + Root Cause
+2. Files affected
+3. Risks of proceeding
+4. Why rollback is being considered
+5. Exact files that would change
+
+Then ASK. No approval = no action.
+
+### Root Cause First
+Reproduce → Investigate → Gather evidence → Find root cause → Propose fix → Implement → Verify. Never patch blindly. Never revert as a shortcut.
+
+## Task Completion Checklist
+
+Before marking ANY task complete:
+- [ ] Code implemented correctly
+- [ ] `npm run build` passes (zero errors)
+- [ ] UI verified (desktop + tablet + mobile)
+- [ ] No existing features broken
+- [ ] No production URLs hardcoded
+- [ ] All colors use CSS tokens, no raw hex/rgba
+- [ ] Font sizes ≥ 11px
+- [ ] Trade execution still works end-to-end
+- [ ] Balance updates correctly
+
+## Key Constraints
+
+- **MAX_OPEN positions:** 5 (enforced in DemoEngine)
+- **MAX_TABS:** 8 chart tabs
+- **Payout:** 82% default (configurable per asset in mockData, 80-93%)
+- **Win rate:** 55% (simulated, adjustable via DemoEngine.winRate)
+- **Early close:** 65% refund
+- **Trade history:** localStorage `autobot_options_history`, last 100 records
+- **Dev server:** `npm run dev` → localhost:5173
+- **No routing:** single-page terminal, sections switch via state
+
+## Related Documentation
+
+- `../CLINE.md` — Parent workspace agent governance (19 skills, multi-agent workflow)
+- `../AGENT_RULES_REFERENCE.md` — Complete compilation of all 17 rule parts
+- `../ARCHITECTURE.md` — Full AutoBotWeb system architecture
+- `../.editor-rules.md` — Vite HMR editing rules
+- `./autobot-options/MEMORY.md` — Project memory bank
+- `./autobot-options/README.md` — Vite React template docs
+- `./docs/brokers-websocket-architecture.md` — 6 broker WS API reference
+- `./memory/broker-protocol-study.md` — Complete broker protocol synthesis
+- `./memory/broker-integration-architecture.md` — Target broker integration architecture
+- `./memory/broker-guidance-protocol.md` — 10 mandatory decision points
+- `./memory/broker-gap-audit.md` — 46 features to implement (27 done, 19 remaining)
