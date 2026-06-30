@@ -4,17 +4,25 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 ## ⚡ NEXT SESSION — Start Here
 
-**Session:** June 30, 2026 — UI polished, design system aligned, chart fixes done. 37/46 gap audit items complete (80%).
+**Session:** July 1, 2026 — Binance live data, full localStorage persistence, position expiry fix, icon rendering fix, secret cleanup. 37/46 gap audit items complete (80%).
+
+### New Since Last Session (June 30 → July 1)
+- **Binance live market data** — 441 USDT pairs streaming via binance-proxy (Docker, port 8097)
+- **Full localStorage persistence** — balance, open positions, tabs, all UI state survive refresh
+- **Position expiry fix** — absolute expiresAt timestamps, no duration extension on refresh
+- **AssetIcon component** — Binance CDN coin icons render as images in all panels
+- **Chrome PNA fix** — no more "access other apps and services" permission prompt
+- **Secret cleanup** — broker HTML snapshots removed from git history, .gitignore hardened
 
 ### Architecture Decisions (ALL 10 RESOLVED ✅)
 1. Platform: Own broker, demo-only. Other brokers in ATS-Project desktop bot.
 2. Demo account model: Unlimited free demo, one-click reset to $10k, no login.
-3. Price feed: Demo engine generates all prices. Real mode deferred.
+3. Price feed: Demo engine + live Binance (441 pairs) + live Deriv. Real mode deferred for other brokers.
 4. Real account activation: Demo-only for now.
 5. Order execution: Instant fill at shown price (market maker model).
-6. Chart data source: Demo engine always drives charts.
+6. Chart data source: Demo engine + live Binance/Deriv candles.
 7. Regulatory scope: Undecided — build first, compliance later.
-8. Token storage: localStorage encrypted (future).
+8. Token storage: localStorage (full state persistence, no encryption yet).
 9. Demo = Paper: Same thing. UI says "Demo Trading."
 10. Martingale/Compounding: Dual independent strategies, both with auto/manual modes.
 
@@ -35,48 +43,65 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 **How to resume:** Say "continue" or name any feature above.
 
-## Current Architecture (June 30, 2026 — 80% complete)
+## Current Architecture (July 1, 2026 — 80% complete)
 
 ```
 autobot-options/
 ├── index.html                 # Inter font preload, Vite entry
 ├── vite.config.js             # Vite 8 + React 19 + Tailwind CSS 4
 ├── public/favicon.svg         # Orange zap logo
+├── Dockerfile                 # Multi-stage: node build → nginx:alpine serve
+├── nginx.conf                 # Container-level nginx (static SPA + gzip)
+├── server/
+│   ├── binance-proxy.js       # WS proxy → Binance (441 USDT pairs, tickers + klines)
+│   ├── Dockerfile.binance     # binance-proxy Docker image (:8092)
+│   ├── deriv-proxy.js         # WS proxy → Deriv API
+│   └── Dockerfile             # deriv-proxy Docker image (:8091)
+├── scripts/
+│   ├── nginx-site.conf        # Host-level nginx (TLS + /ws/deriv + /ws/binance routes)
+│   └── deploy.sh              # One-shot deploy script
 └── src/
     ├── main.jsx               # React 19 root mount
-    ├── App.jsx                # Main terminal — 4-panel grid, tabs, settings, replay
+    ├── App.jsx                # Main terminal — 4-panel grid, multi-tab, persistence
     ├── index.css              # PIT-TERMINAL dark theme, 3 breakpoints
     ├── engine/
     │   ├── DemoEngine.js      # Trading core: positions, TP/SL, alerts, martingale
     │   │                      # compounding, pending orders, risk mgmt, rollover/extend
-    │   │                      # trade journal, persistence, React hook wrapper
+    │   │                      # full localStorage state persistence + absolute expiry
     │   ├── PriceFeedEngine.js # 4 market modes (random/trending/volatile/sideways)
     │   └── BacktestEngine.js  # Strategy backtester (RSI, SMA cross, MACD cross)
     ├── data/
     │   ├── mockData.js        # 20 assets, generators, 7 indicators, VWAP, Volume Profile
     │   │                      # Order Book, TF_MAP, history persistence, constants
+    │   ├── binanceMapping.js  # Binance symbol → asset format, CDN coin icons, fallback SVGs
     │   └── economicCalendar.js # 21 events, rolling dates, active event detection
     ├── hooks/
     │   ├── useWebSocket.js    # Simulated 500ms tick feed (real WS via VITE_WS_URL)
+    │   ├── useMarketData.js   # Deriv feed hook (VITE_WS_URL → deriv-proxy)
+    │   ├── useBinanceData.js  # Binance feed hook (VITE_BINANCE_WS_URL → binance-proxy)
+    │   ├── feeds/
+    │   │   ├── DerivFeed.js   # Deriv WebSocket adapter
+    │   │   └── BinanceFeed.js # Binance WebSocket adapter (HTTPS guard)
     │   ├── useSound.js        # Audio feedback for trade events
     │   ├── useKeyboardShortcuts.js # Hotkeys (Space=Call, Enter=Put, numbers=presets)
     │   └── usePushNotifications.js # Browser Notification API wrapper
     └── components/
         ├── Sidebar.jsx        # Left nav: 8 sections + footer
         ├── AssetPanel.jsx     # Search, category filter, sentiment bars, win rates
+        ├── AssetIcon.jsx      # Shared icon: Binance CDN img / forex flags / text badge
         ├── ChartArea.jsx      # Toolbar, settings, multi-chart, indicators, drawing, replay
         ├── CanvasChart.jsx    # Physics canvas: candles, 5 indicators, VWAP, MTF, VP, DOM
         │                      # custom indicators, trade markers, zoom/pan, crosshair
         ├── TradePanel.jsx     # CALL/PUT, TP/SL, martingale, compounding, entry orders
         │                      # risk mgmt, position cards, extend, journal notes
         ├── SettingsModal.jsx   # Tabbed settings: Chart / Overlays / Alerts
-        ├── HistoryView.jsx    # Trade history + CSV export, notes
+        ├── HistoryView.jsx    # Trade history + CSV export, notes (persisted filters)
         ├── AnalyticsView.jsx  # P&L analytics, win rate, pie chart
         ├── JournalView.jsx    # Annotated positions, searchable
         ├── EconomicCalendar.jsx # Upcoming events, impact filters, live countdowns
         ├── HeatmapView.jsx    # Color-coded asset performance grid
         ├── CorrelationMatrix.jsx # Forex pair Pearson correlation table
-        ├── BacktesterView.jsx # Strategy config + results + equity curve
+        ├── BacktesterView.jsx # Strategy config + results + equity curve (persisted params)
         ├── ConfirmModal.jsx   # Styled confirmation dialog
         └── ToastContainer.jsx # Toast notifications
 ```
