@@ -1,0 +1,6 @@
+FROM node:22-alpine
+WORKDIR /app
+COPY binance-proxy.js .
+RUN npm init -y > /dev/null 2>&1 && npm install ws@^8.21.0
+EXPOSE 8092
+CMD ["node", "binance-proxy.js"]
