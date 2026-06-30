@@ -85,6 +85,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
       },
       onSymbols: (raw) => {
         if (settled) return
+        if (!raw || raw.length === 0) return
         settled = true
         const normalized = raw.map(normalizeDerivSymbol).filter(Boolean)
         setAssets(normalized.map(s => ({ ...s, source: 'deriv' })))
@@ -106,6 +107,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
     feed.connect()
 
     return () => {
+      subManagerRef.current.reset()
       feed.disconnect()
       feedRef.current = null
     }

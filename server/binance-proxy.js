@@ -242,9 +242,11 @@ function handleClientMsg(client, data) {
   const type = data.type || '';
 
   if (type === 'get_symbols') {
-    // Don't build from empty data if exchangeInfo hasn't loaded yet.
-    // Clients will receive symbols via broadcast when exchangeInfo completes.
-    if (!cachedSymbols) return
+    // Don't respond until exchangeInfo has loaded AND returned real symbols.
+    // cachedSymbols is null before fetch and [] on fetch failure — both
+    // must be blocked to prevent the frontend from receiving empty symbol
+    // lists that trigger the settled=true guard and permanently block data.
+    if (!cachedSymbols || cachedSymbols.length === 0) return
     client.send(JSON.stringify({ type: 'symbols', symbols: cachedSymbols }));
     return;
   }

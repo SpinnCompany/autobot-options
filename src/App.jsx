@@ -261,14 +261,32 @@ export default function App() {
     if (!restoredSubsDone.current && sources.length > 0 && tabsRef.current.length > 0) {
       restoredSubsDone.current = true
       for (const tab of tabsRef.current) {
-        // Legacy tabs may not have a source field — match by name only and
-        // auto-assign the source from the found asset.
         const asset = tab.source
           ? sources.find(a => a.name === tab.asset && a.source === tab.source)
           : sources.find(a => a.name === tab.asset)
         if (!asset) continue
-        // Assign source to legacy tabs so handleAssetTick filtering works
         if (!tab.source) tab.source = asset.source
+        if (asset.source === 'binance' && asset.brokerSymbol) {
+          binanceData.subscribe([asset.brokerSymbol], tab.id)
+          binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
+        } else if (asset.derivSymbol) {
+          marketData.subscribe([asset.derivSymbol], tab.id)
+          marketData.fetchCandles(asset.derivSymbol, 60, 1440)
+        }
+      }
+    }
+
+    // Recover tabs opened before their data source was available.
+    // A tab opened when only Deriv has loaded (and Binance hasn't) gets
+    // source=undefined. When Binance finally loads, this block finds the
+    // tab, assigns the source, and subscribes. Runs on every sources change
+    // so it catches late-loading sources.
+    if (sources.length > 0 && tabsRef.current.length > 0) {
+      for (const tab of tabsRef.current) {
+        if (tab.source) continue  // already resolved — skip
+        const asset = sources.find(a => a.name === tab.asset)
+        if (!asset) continue
+        tab.source = asset.source
         if (asset.source === 'binance' && asset.brokerSymbol) {
           binanceData.subscribe([asset.brokerSymbol], tab.id)
           binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
@@ -649,7 +667,7 @@ export default function App() {
     const newTab = {
       id: `tab-${Date.now()}`,
       asset: name,
-      source: asset?.source || 'deriv',
+      source: asset?.source,  // may be undefined — resolved when source loads (see merge effect)
       priceHistory: [],
       candleHistory: [],
       timeframe: '1m',

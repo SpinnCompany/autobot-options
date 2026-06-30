@@ -210,13 +210,40 @@ wss.on('connection', (clientWs) => {
 
   clientWs.on('close', () => {
     frontendClients.delete(clientWs)
+    // Ref-counted cleanup: remove this client's subscriptions and
+    // unsubscribe from Deriv any symbols no other client needs.
+    const csubs = clientSubs.get(clientWs)
     clientSubs.delete(clientWs)
+    if (csubs) {
+      for (const sym of csubs) {
+        let stillNeeded = false
+        for (const [, otherSubs] of clientSubs) {
+          if (otherSubs.has(sym)) { stillNeeded = true; break }
+        }
+        if (!stillNeeded) {
+          activeSubs.delete(sym)
+          if (derivConnected && derivWs) {
+            derivWs.send(JSON.stringify({ ticks: sym, subscribe: 0 }))
+          }
+        }
+      }
+    }
     log(`Client disconnected (${frontendClients.size} total)`)
   })
 
   clientWs.on('error', () => {
     frontendClients.delete(clientWs)
+    const csubs = clientSubs.get(clientWs)
     clientSubs.delete(clientWs)
+    if (csubs) {
+      for (const sym of csubs) {
+        let stillNeeded = false
+        for (const [, otherSubs] of clientSubs) {
+          if (otherSubs.has(sym)) { stillNeeded = true; break }
+        }
+        if (!stillNeeded) { activeSubs.delete(sym) }
+      }
+    }
   })
 })
 
@@ -245,9 +272,19 @@ function handleClientMsg(msg, clientWs) {
         const csubs = clientSubs.get(clientWs)
         if (csubs) for (const sym of msg.symbols) csubs.delete(sym)
         for (const sym of msg.symbols) {
-          activeSubs.delete(sym)
-          if (derivConnected && derivWs) {
-            derivWs.send(JSON.stringify({ ticks: sym, subscribe: 0 }))
+          // Reference-counted unsubscribe — only remove from activeSubs
+          // and tell Deriv to stop sending when NO remaining client needs
+          // this symbol. Without this, a single client unsubscribing kills
+          // the tick stream for ALL other clients subscribed to that symbol.
+          let stillNeeded = false
+          for (const [, otherSubs] of clientSubs) {
+            if (otherSubs.has(sym)) { stillNeeded = true; break }
+          }
+          if (!stillNeeded) {
+            activeSubs.delete(sym)
+            if (derivConnected && derivWs) {
+              derivWs.send(JSON.stringify({ ticks: sym, subscribe: 0 }))
+            }
           }
         }
       }

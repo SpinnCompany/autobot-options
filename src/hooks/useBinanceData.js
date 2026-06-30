@@ -84,6 +84,10 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
       },
       onSymbols: (raw) => {
         if (settled) return
+        // Guard against empty symbols race — if the proxy sends [] before
+        // exchangeInfo loads, don't mark settled. This allows real symbols
+        // to arrive later instead of permanently blocking them.
+        if (!raw || raw.length === 0) return
         settled = true
         const normalized = raw.map(normalizeBinanceSymbol).filter(Boolean)
         setAssets(normalized.map(s => ({ ...s, source: 'binance' })))
@@ -109,6 +113,10 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
     feed.connect()
 
     return () => {
+      // Reset subscription state to prevent orphaned subscriptions on remount.
+      // React 18+ strict mode double-mounts effects, and without this reset the
+      // SubManager's _active set is stale while the new feed has empty pendingSubs.
+      subManagerRef.current.reset()
       feed.disconnect()
       feedRef.current = null
     }
