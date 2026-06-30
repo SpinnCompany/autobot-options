@@ -434,7 +434,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                 </div>
               </div>
               <CanvasChart
-                key={`${selectedAsset}|${timeframe}|${chartResetKey}`}
+                key={`${selectedAsset}|${chartResetKey}`}
                 candles={mappedCandles}
                 decimals={5}
                 chartType={canvasChartType}

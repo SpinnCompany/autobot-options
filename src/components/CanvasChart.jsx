@@ -1198,14 +1198,13 @@ export const CanvasChart = ({
     const key = `${firstT}-${candles.length}`
     const snap = dataSnapshotRef.current
 
-    // Data reset detection (symbol/tf change — large count jump or different first candle)
+    // Data reset detection (fetchCandles replacing tick-built candles, or symbol change)
     if (snap.key && key !== snap.key) {
       const [oldFirstT, oldLen] = snap.key.split("-").map(Number)
       if (Math.abs(candles.length - oldLen) > 50 || (firstT > 0 && firstT !== oldFirstT)) {
-        const stored = getStoredZoom()
-        zoomTarget.current = stored > 0 ? stored : getInitialZoom()
-        zoomVelocity.current = 0
-        panOffset.current = 0; panVelocity.current = 0
+        // Clear interpolation state only — do NOT reset zoom/pan.
+        // Symbol changes remount the component via the key prop (zoom IIFE handles it).
+        // Data refreshes should preserve the user's current zoom level.
         lastCandleRef.current = null; interpRef.current = null
         candlesTransitionRef.current = null; prevCandlesRef.current = []
         smoothBoundsRef.current = null
@@ -1326,6 +1325,32 @@ export const CanvasChart = ({
 
   /* ── UI config changes → mark dirty (candle data changes handled by detectDataChanges in rAF loop) ── */
   useEffect(() => { needsRedraw.current = true; }, [decimals, marketOpen, chartType, candleWidthMode, showGrid, drawingLines, indicators, drawingMode]);
+
+  /* ── Timeframe switch: load stored zoom for new persistKey, keep current if none ── */
+  const prevPersistKeyRef = useRef(persistKey);
+  useEffect(() => {
+    if (persistKey === prevPersistKeyRef.current) return;
+    prevPersistKeyRef.current = persistKey;
+    // Try to load stored zoom for the new timeframe
+    let storedZoom = 0;
+    try {
+      const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
+      if (raw) {
+        const data = JSON.parse(raw);
+        storedZoom = data[persistKey] || 0;
+      }
+    } catch { /* noop */ }
+    if (storedZoom > 0) {
+      // Use stored zoom for this timeframe
+      zoomTarget.current = storedZoom;
+      zoomVelocity.current = 0;
+      panOffset.current = 0;
+      panVelocity.current = 0;
+      smoothBoundsRef.current = null;
+      needsRedraw.current = true;
+    }
+    // If no stored zoom, keep current zoom level — inherits from previous timeframe
+  }, [persistKey]);
 
   /* ── Reset zoom/pan/physics on tab open/close ── */
   useEffect(() => {
