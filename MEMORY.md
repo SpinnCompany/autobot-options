@@ -157,6 +157,27 @@ No polling. Each tick triggers redraw on next animation frame (~16ms).
 | UTC clock | `ChartArea.jsx` — right-aligned amber pill badge |
 | Console log cleanup | `useMarketData.js` — removed tick stream debug logs |
 
+## Production Deployment (2026-06-30)
+
+| Component | Location | Port |
+|-----------|----------|------|
+| SPA (nginx alpine) | Docker: autobot-options | 8095→80 |
+| deriv-proxy (node:22) | Docker: deriv-proxy | 8096→8091 |
+| nginx (host) | GCP VM 34.81.61.52 | :80/:443 |
+| SSL | Let's Encrypt / certbot | auto-renew |
+
+**Domain:** https://options.autobotsignal.io
+**Repo:** github.com/SpinnCompany/autobot-options
+**Build arg:** `VITE_WS_URL=wss://options.autobotsignal.io/ws`
+
+### Critical Rules
+- **NEVER add simulation fallbacks** — all data is real Deriv data via deriv-proxy
+- **Port 8091 is phpMyAdmin** — deriv-proxy mapped to host 8096
+- **Docker --no-cache required** when changing VITE_WS_URL build arg
+- **VITE_WS_URL** env var controls WS endpoint (dev: ws://localhost:8091)
+
+- [Session June 30 Bugs](memory/session-2026-06-30-bugs.md) — 3 fixed, 4 identified: double negative, timeframe blanking, RNG resolution, chart lag
+
 ## Remaining (9 items — all need backend infrastructure)
 
 | # | Feature | Blocker |

@@ -34,23 +34,28 @@ export default function App() {
   const candleStoreRef = useRef(new Map()) // tabId → Map<tf, candles[]>
   const MAX_CANDLES = 1440
 
-  const seedDayHistory = useCallback((tabId, tf, basePrice) => {
-    const tfMs = TF_MAP[tf] || 60000
-    const alignedNow = Math.floor(Date.now() / tfMs) * tfMs
-    const candles = []
-    const count = tf === '1m' ? 1440 : Math.floor(86400 / (tfMs / 1000))
-    const price = parseFloat((basePrice || 1).toFixed(5))
-    // Flat baseline — no random noise. Real candles build from ticks, history fills via fetchCandles.
-    for (let i = 0; i < count; i++) {
-      candles.push({
-        time: alignedNow - (count - 1 - i) * tfMs,
-        open: price, high: price, low: price, close: price, v: 0,
-      })
-    }
-    const store = candleStoreRef.current.get(tabId) || new Map()
-    store.set(tf, candles)
-    candleStoreRef.current.set(tabId, store)
-    return candles
+  // ── rAF batching for tick → state syncs ──
+  const tickSyncPendingRef = useRef(new Map()) // `${tabId}:${tf}` → candles[]
+  const tickSyncRafRef = useRef(null)
+
+  const flushTickSyncs = useCallback(() => {
+    tickSyncRafRef.current = null
+    const pending = [...tickSyncPendingRef.current.entries()]
+    tickSyncPendingRef.current.clear()
+    if (pending.length === 0) return
+    // Batch all pending tabs into a single setTabs call
+    setTabs(prev => {
+      let next = prev
+      for (const [key, candles] of pending) {
+        const [tabId, tf] = key.split(':')
+        next = next.map(t => {
+          if (t.id !== tabId) return t
+          const priceHistory = candles.map(c => ({ time: c.time, price: c.close }))
+          return { ...t, candleHistory: [...candles], priceHistory }
+        })
+      }
+      return next
+    })
   }, [])
 
   const syncCandlesToTab = useCallback((tabId, tf, candles) => {
@@ -81,7 +86,10 @@ export default function App() {
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
       let candles = store.get(tab.timeframe)
       if (!candles || candles.length === 0) {
-        candles = seedDayHistory(tab.id, tab.timeframe, tickPrice)
+        // Start with a single candle from the first tick instead of seeding
+        // a full day of flat candles. The chart builds naturally tick-by-tick
+        // and fetchCandles fills in real history within seconds.
+        candles = [{ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 0 }]
       }
 
       const last = candles[candles.length - 1]
@@ -97,9 +105,14 @@ export default function App() {
       }
 
       store.set(tab.timeframe, candles)
-      syncCandlesToTab(tab.id, tab.timeframe, candles)
+      // Batch state syncs via rAF — multiple ticks in the same frame
+      // result in a single React render instead of N separate renders.
+      tickSyncPendingRef.current.set(`${tab.id}:${tab.timeframe}`, candles)
+      if (!tickSyncRafRef.current) {
+        tickSyncRafRef.current = requestAnimationFrame(flushTickSyncs)
+      }
     })
-  }, [seedDayHistory, syncCandlesToTab])
+  }, [flushTickSyncs])
 
   // ── Deriv candle history — replaces seed with real OHLC from Deriv ──
   const onDerivCandles = useCallback((derivSymbol, candles) => {
@@ -536,10 +549,19 @@ export default function App() {
   }, [])
 
   const handleTimeframeChange = useCallback((tf) => {
+    delete candleEpochRef.current[activeTabId]
+
+    // Check if we already have candles for this timeframe in the store
+    const store = candleStoreRef.current.get(activeTabId)
+    const cached = store?.get(tf)
+    if (cached && cached.length > 0) {
+      // Use cached candles immediately — no blank flash
+      syncCandlesToTab(activeTabId, tf, cached)
+    }
+
     setTabs(prev => prev.map(t => {
       if (t.id !== activeTabId) return t
-      delete candleEpochRef.current[activeTabId]
-      return { ...t, timeframe: tf, candleHistory: [], priceHistory: [] }
+      return { ...t, timeframe: tf }
     }))
     const activeTab = tabsRef.current.find(t => t.id === activeTabId)
     const asset = assetsRef.current.find(a => a.name === activeTab?.asset)
@@ -547,7 +569,7 @@ export default function App() {
       const granularity = Math.floor((TF_MAP[tf] || 60000) / 1000)
       marketData.fetchCandles(asset.derivSymbol, granularity, 1440)
     }
-  }, [activeTabId, marketData])
+  }, [activeTabId, marketData, syncCandlesToTab])
 
   // ── Mobile panel toggles ──
   const [mobilePanel, setMobilePanel] = useState(null) // 'assets' | 'trade' | null

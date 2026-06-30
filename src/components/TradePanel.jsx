@@ -1111,7 +1111,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                     color: pos.direction === 'call' ? 'var(--success)' : 'var(--danger)',
                   }}>{pos.direction.toUpperCase()}</span>
                   <span style={{ fontWeight: 700, color: pos.status === 'win' ? 'var(--success)' : 'var(--danger)' }}>
-                    {pos.status === 'win' ? '+$' : '-$'}{(pos.pnl || pos.amount).toFixed(2)}
+                    {pos.status === 'win' ? '+$' : '-$'}{Math.abs(pos.pnl || pos.amount).toFixed(2)}
                   </span>
                   <span style={{
                     color: 'var(--text-muted)', opacity: 0.4, transition: 'transform 0.15s',

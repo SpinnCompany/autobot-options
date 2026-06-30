@@ -157,6 +157,9 @@ export const CanvasChart = ({
   // Smooth candle bar slide: interpolate ALL visible candles, not just last
   const prevCandlesRef = useRef([]);
   const candlesTransitionRef = useRef(null);
+  // rAF-driven change detection — compares latest data against snapshot
+  const prevCandlesKey = useRef("");
+  const dataSnapshotRef = useRef({ key: '', length: 0, lastT: 0 });
 
   /* ── Smoothed price bounds — prevents jarring auto-scale jumps ── */
   const smoothBoundsRef = useRef(null); // { pMin, pMax } or null on first frame
@@ -1098,6 +1101,62 @@ export const CanvasChart = ({
     }
   }, [decimals, marketOpen, chartType, candleWidthMode, showGrid, drawingLines, indicators, drawingMode, tradeMarkers, volumeProfile, mtfCandles, orderBook, customIndicators, tfMs]);
 
+  /* ── rAF-driven change detection (independent of React render ticks) ── */
+  const detectDataChanges = useCallback(() => {
+    const candles = candlesRef.current
+    if (candles.length === 0) { interpRef.current = null; lastCandleRef.current = null; return }
+
+    const latest = candles[candles.length - 1]
+    const firstT = candles[0]?.t || 0
+    const key = `${firstT}-${candles.length}`
+    const snap = dataSnapshotRef.current
+
+    // Data reset detection (symbol/tf change — large count jump or different first candle)
+    if (snap.key && key !== snap.key) {
+      const [oldFirstT, oldLen] = snap.key.split("-").map(Number)
+      if (Math.abs(candles.length - oldLen) > 50 || (firstT > 0 && firstT !== oldFirstT)) {
+        const stored = getStoredZoom()
+        zoomTarget.current = stored > 0 ? stored : getInitialZoom()
+        zoomVelocity.current = 0
+        panOffset.current = 0; panVelocity.current = 0
+        lastCandleRef.current = null; interpRef.current = null
+        candlesTransitionRef.current = null; prevCandlesRef.current = []
+        smoothBoundsRef.current = null
+        setInitialZoomDone(false)
+        dataSnapshotRef.current = { key, length: candles.length, lastT: latest.t }
+        needsRedraw.current = true
+        return
+      }
+    }
+
+    // First data or new tab
+    if (!lastCandleRef.current) {
+      lastCandleRef.current = latest
+      prevCandlesRef.current = [...candles]
+      dataSnapshotRef.current = { key, length: candles.length, lastT: latest.t }
+      needsRedraw.current = true
+      return
+    }
+
+    // Candle array structural change (new candle appended or old removed)
+    const prevLen = prevCandlesRef.current.length
+    if (candles.length !== prevLen) {
+      candlesTransitionRef.current = { from: [...prevCandlesRef.current], to: [...candles], startTime: Date.now() }
+      prevCandlesRef.current = [...candles]
+    }
+
+    // Live candle update — only interpolate if OHLC actually changed
+    if (latest.t !== lastCandleRef.current.t || latest.o !== lastCandleRef.current.o ||
+        latest.h !== lastCandleRef.current.h || latest.l !== lastCandleRef.current.l ||
+        latest.c !== lastCandleRef.current.c) {
+      interpRef.current = { from: { ...lastCandleRef.current }, to: { ...latest }, startTime: Date.now() }
+      lastCandleRef.current = latest
+      needsRedraw.current = true
+    }
+
+    dataSnapshotRef.current = { key, length: candles.length, lastT: latest.t }
+  }, [getStoredZoom, getInitialZoom])
+
   /* ═══════════════ PHYSICS STEP ═══════════════ */
   const physicsStep = useCallback(() => {
     let changed = false;
@@ -1155,10 +1214,11 @@ export const CanvasChart = ({
 
   /* ═══════════════ FRAME LOOP (ref-based to avoid self-reference) ═══════════════ */
   const stepFn = useCallback(() => {
+    detectDataChanges();   // rAF-driven, independent of React render ticks
     physicsStep();
     if (needsRedraw.current) drawFrame();
     rafId.current = requestAnimationFrame(frameFnRef.current);
-  }, [physicsStep, drawFrame]);
+  }, [detectDataChanges, physicsStep, drawFrame]);
 
   /* Keep the ref updated so the rAF callback always calls the latest stepFn */
   useEffect(() => { frameFnRef.current = stepFn; }, [stepFn]);
@@ -1168,8 +1228,8 @@ export const CanvasChart = ({
     return () => cancelAnimationFrame(rafId.current);
   }, []);
 
-  /* ── Data changes → mark dirty ── */
-  useEffect(() => { needsRedraw.current = true; }, [candles, decimals, marketOpen, chartType, candleWidthMode, showGrid, drawingLines, indicators, drawingMode]);
+  /* ── UI config changes → mark dirty (candle data changes handled by detectDataChanges in rAF loop) ── */
+  useEffect(() => { needsRedraw.current = true; }, [decimals, marketOpen, chartType, candleWidthMode, showGrid, drawingLines, indicators, drawingMode]);
 
   /* ── Reset zoom/pan/physics on tab open/close ── */
   useEffect(() => {
@@ -1197,64 +1257,6 @@ export const CanvasChart = ({
       needsRedraw.current = true;
     }
   }, [candles.length, initialZoomDone, getInitialZoom]);
-
-  /* ── Interpolation on new candle ── */
-  const prevCandlesKey = useRef("");
-  useEffect(() => {
-    if (candles.length === 0) return;
-    const latest = candles[candles.length - 1];
-    const firstT = candles[0]?.t || 0;
-
-    // Detect symbol/timeframe change by checking first candle timestamp
-    const key = `${firstT}-${candles.length}`;
-    if (prevCandlesKey.current && key !== prevCandlesKey.current) {
-      const [oldFirstT, oldLen] = prevCandlesKey.current.split("-").map(Number);
-      // Large count jump or different first candle = data reset (symbol/tf change)
-      if (Math.abs(candles.length - oldLen) > 50 || (firstT > 0 && firstT !== oldFirstT)) {
-        // Data reset (symbol/tf change) — restore zoom or use default
-        const stored = getStoredZoom();
-        zoomTarget.current = stored > 0 ? stored : getInitialZoom();
-        zoomVelocity.current = 0;
-        panOffset.current = 0; panVelocity.current = 0;
-        lastCandleRef.current = null; interpRef.current = null;
-        candlesTransitionRef.current = null; prevCandlesRef.current = [];
-        smoothBoundsRef.current = null;
-        setInitialZoomDone(false);
-        prevCandlesKey.current = key;
-        needsRedraw.current = true;
-        return;
-      }
-    }
-
-    // Track previous candles for smooth slide transition
-    const prevCandles = prevCandlesRef.current;
-
-    if (!lastCandleRef.current) {
-      lastCandleRef.current = latest;
-      prevCandlesRef.current = [...candles];
-      prevCandlesKey.current = key;
-      needsRedraw.current = true;
-      return;
-    }
-
-    // Check if candle array shifted (new candle appended or old removed)
-    if (prevCandles.length > 0 && candles.length !== prevCandles.length) {
-      candlesTransitionRef.current = { from: [...prevCandles], to: [...candles], startTime: Date.now() };
-      prevCandlesRef.current = [...candles];
-    }
-
-    // Live candle update — check if OHLC changed
-    if (latest.t !== lastCandleRef.current.t || latest.o !== lastCandleRef.current.o ||
-        latest.h !== lastCandleRef.current.h || latest.l !== lastCandleRef.current.l ||
-        latest.c !== lastCandleRef.current.c) {
-      // Only interpolate if the candle actually changed (not just new array reference)
-      interpRef.current = { from: { ...lastCandleRef.current }, to: { ...latest }, startTime: Date.now() };
-      lastCandleRef.current = latest;
-      needsRedraw.current = true;
-    }
-
-    prevCandlesKey.current = key;
-  }, [candles]);
 
   /* ═══════════════ INPUT HANDLERS ═══════════════ */
 

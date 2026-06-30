@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { DerivFeed } from './feeds/DerivFeed'
 import { normalizeDerivSymbol } from '../data/derivMapping'
 
-const PROXY_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8091'
-
 export function useMarketData({ onAssetTick, onCandles } = {}) {
   const [assets, setAssets] = useState([])
   const [connected, setConnected] = useState(false)
@@ -62,27 +60,9 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
     feedRef.current?.subscribe(symbols)
   }, [])
 
-  /** Fetch OHLC history via dedicated WebSocket. Response comes via onCandles callback. */
+  /** Fetch OHLC history via the shared DerivFeed connection. Response comes via onCandles callback. */
   const fetchCandles = useCallback((symbol, granularity, count = 200) => {
-    const ws = new WebSocket(PROXY_URL)
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'market:candles', symbol, granularity, count }))
-    }
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (msg.type === 'candles' && Array.isArray(msg.candles)) {
-          const mapped = msg.candles.map(c => ({
-            time: (c.epoch || 0) * 1000,
-            open: c.open, high: c.high, low: c.low, close: c.close, v: c.volume || 0,
-          }))
-          onCandlesRef.current?.(msg.symbol, mapped)
-          ws.close()
-        }
-      } catch {}
-    }
-    ws.onerror = () => { try { ws.close() } catch {} }
-    setTimeout(() => { try { ws.close() } catch {} }, 10000)
+    feedRef.current?.fetchCandles(symbol, granularity, count)
   }, [])
 
   return { assets, connected, subscribe, fetchCandles }

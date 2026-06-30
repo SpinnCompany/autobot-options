@@ -602,7 +602,12 @@ export class DemoEngine {
    * @param {number} exitPrice — current market price at expiry
    */
   _resolvePosition(id, amount, payoutPercent, asset, exitPrice) {
-    const outcome = Math.random() > (1 - this.winRate) ? 'win' : 'loss'
+    // Price-driven outcome: CALL wins when price rises, PUT wins when price falls
+    const pos = this.positions.find(p => p.id === id)
+    const entryPrice = pos?.entryPrice ?? exitPrice
+    const outcome = pos?.direction === 'call'
+      ? exitPrice > entryPrice ? 'win' : 'loss'
+      : exitPrice < entryPrice ? 'win' : 'loss'
 
     // Track for martingale / compounding
     this.lastTradeResult = outcome

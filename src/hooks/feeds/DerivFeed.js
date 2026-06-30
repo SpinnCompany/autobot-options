@@ -75,28 +75,9 @@ export class DerivFeed {
     this._send({ type: 'get_symbols' })
   }
 
-  /** Request OHLC history for a symbol. Uses a dedicated WebSocket per request. */
+  /** Request OHLC history for a symbol. Reuses the existing WebSocket connection. */
   fetchCandles(symbol, granularity, count = 200) {
-    const ws = new WebSocket(PROXY_URL)
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'market:candles', symbol, granularity, count }))
-    }
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data)
-        if (msg.type === 'candles' && Array.isArray(msg.candles)) {
-          const mapped = msg.candles.map(c => ({
-            time: (c.epoch || 0) * 1000,
-            open: c.open, high: c.high, low: c.low, close: c.close, v: c.volume || 0,
-          }))
-          this.onCandles?.(msg.symbol, mapped)
-          ws.close()
-        }
-      } catch { /* ignore parse errors */ }
-    }
-    ws.onerror = () => ws.close()
-    // Timeout safety — close after 10s if no response
-    setTimeout(() => { if (ws.readyState === WebSocket.OPEN) ws.close() }, 10000)
+    this._send({ type: 'market:candles', symbol, granularity, count })
   }
 
   // ── Internal ────────────────────────────────────────────
