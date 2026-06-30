@@ -436,12 +436,12 @@ export const CanvasChart = ({
 
       // Gradient: green (top) → transparent at baseline → red (bottom)
       // Matches trading-charts UPDATE_AREA_COLORS with gradientUnits: userSpaceOnUse
-      const baselineRatio = (baselineY - chartTop) / ch; // 0=top, 1=bottom
+      const baselineRatio = Math.max(0, Math.min(1, (baselineY - chartTop) / ch)); // clamp [0,1]
       const areaGrad = ctx.createLinearGradient(0, chartTop, 0, chartBot);
       areaGrad.addColorStop(0, 'rgba(16,185,129,0.22)');
-      areaGrad.addColorStop(Math.max(0.02, baselineRatio - 0.04), 'rgba(16,185,129,0.07)');
+      areaGrad.addColorStop(Math.max(0.005, baselineRatio - 0.03), 'rgba(16,185,129,0.07)');
       areaGrad.addColorStop(baselineRatio, 'rgba(128,128,128,0.0)');
-      areaGrad.addColorStop(Math.min(0.98, baselineRatio + 0.04), 'rgba(239,68,68,0.07)');
+      areaGrad.addColorStop(Math.min(0.995, baselineRatio + 0.03), 'rgba(239,68,68,0.07)');
       areaGrad.addColorStop(1, 'rgba(239,68,68,0.22)');
       ctx.fillStyle = areaGrad;
       ctx.fill();
