@@ -13,6 +13,31 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
   const onCandlesRef = useRef(onCandles)
   onCandlesRef.current = onCandles
 
+  // rAF-batched asset price updates — prevents render floods from high-frequency ticks
+  const priceBufRef = useRef(new Map())  // symbol → price
+  const priceRafRef = useRef(null)
+  const assetsRef = useRef(assets)
+  assetsRef.current = assets
+
+  const flushPriceUpdates = useCallback(() => {
+    priceRafRef.current = null
+    const updates = [...priceBufRef.current.entries()]
+    priceBufRef.current.clear()
+    if (updates.length === 0) return
+    setAssets(prev => {
+      let next = prev
+      for (const [symbol, price] of updates) {
+        next = next.map(a => {
+          if (a.derivSymbol !== symbol) return a
+          if (!a.price || a.price <= 0) return { ...a, price, change: '0.00', source: 'deriv' }
+          const chg = ((price - a.price) / a.price * 100)
+          return { ...a, price, change: chg.toFixed(2), source: 'deriv' }
+        })
+      }
+      return next
+    })
+  }, [])
+
   useEffect(() => {
     let settled = false
 
@@ -21,12 +46,11 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
         if (!price) return
         onAssetTickRef.current?.(symbol, price)
 
-        setAssets(prev => prev.map(a => {
-          if (a.derivSymbol !== symbol) return a
-          if (!a.price || a.price <= 0) return { ...a, price: parseFloat(price.toFixed(5)), change: '0.00', source: 'deriv' }
-          const chg = ((price - a.price) / a.price * 100)
-          return { ...a, price: parseFloat(price.toFixed(5)), change: chg.toFixed(2), source: 'deriv' }
-        }))
+        const tickPrice = parseFloat(price.toFixed(5))
+        priceBufRef.current.set(symbol, tickPrice)
+        if (!priceRafRef.current) {
+          priceRafRef.current = requestAnimationFrame(flushPriceUpdates)
+        }
 
         symbolTicksRef.current.set(symbol, (symbolTicksRef.current.get(symbol) || 0) + 1)
         tickCountRef.current++
