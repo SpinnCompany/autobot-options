@@ -4,7 +4,7 @@
 
 **AutobotOptions** is a standalone demo binary options trading terminal built with Vite 8 + React 19 + Tailwind CSS 4. It provides a professional trading experience with live Deriv price feeds, multi-asset charting, position management, and trade history — designed as the foundation for a full broker platform.
 
-## Architecture (2026-06-30 — session polish complete)
+## Architecture (2026-06-30 — session complete, all 4 bugs fixed, trading-charts patterns integrated)
 
 ```
 autobot-options/
@@ -17,15 +17,17 @@ autobot-options/
     ├── main.jsx               # React 19 root mount
     ├── App.jsx                # Main terminal — 4-panel grid, tabs, settings, replay
     │                          # Clean slate on refresh (no persisted tabs)
-    │                          # First Deriv asset auto-opens initial tab
-    │                          # Chart reset key on tab open/close
+    │                          # historyReadyRef gates chart rendering until fetchCandles returns
+    │                          # rAF-batched tick syncs (flushTickSyncs)
     ├── index.css              # PIT-TERMINAL design system per rules/design-system.md §14
     │                          # --pit-* tokens with legacy aliases
-    │                          # Glass morphism, grid bg, reduced-motion, animations
+    │                          # Glass morphism, grid bg, reduced-motion, @keyframes spin
     ├── engine/
     │   ├── DemoEngine.js      # Trading core: positions, TP/SL, alerts, martingale
     │   │                      # compounding, pending orders, risk mgmt, rollover/extend
     │   │                      # trade journal, persistence, React hook wrapper
+    │   │                      # ★ big.js precise arithmetic for all money math
+    │   │                      # ★ price-driven trade resolution (CALL wins when exitPrice > entryPrice)
     │   ├── PriceFeedEngine.js # 4 market modes: random, trending, volatile, sideways
     │   └── BacktestEngine.js  # Strategy backtester: RSI, SMA cross, MACD cross
     ├── data/
@@ -34,25 +36,32 @@ autobot-options/
     │   ├── economicCalendar.js # 21 events, rolling dates, active event detection
     │   └── derivMapping.js    # Deriv symbol normalization + forex flag emojis
     ├── hooks/
-    │   ├── useMarketData.js   # Deriv feed orchestrator (no console spam)
+    │   ├── useMarketData.js   # Deriv feed orchestrator (fetchCandles reuses shared WS)
     │   ├── useWebSocket.js    # Simulated 500ms tick feed (real WS via VITE_WS_URL)
     │   ├── useSound.js        # Audio feedback for trade events
     │   ├── useKeyboardShortcuts.js # Hotkeys: Space=Call, Enter=Put, numbers=presets
     │   ├── usePushNotifications.js # Browser Notification API wrapper
     │   └── feeds/
     │       └── DerivFeed.js   # WebSocket adapter for deriv-proxy (:8091)
+    │                          # fetchCandles() reuses shared WS via _send()
     └── components/
         ├── Sidebar.jsx        # Left nav: plain_logo.png + 9 section icons
         ├── AssetPanel.jsx     # Search, category filter, forex flag emojis, win rates
         ├── ChartArea.jsx      # Toolbar, settings, multi-chart, indicators, drawing, replay
-        │                      # UTC clock (right-aligned, amber pill badge)
+        │                      # UTC clock, loading placeholder (CanvasChart unmounted during load)
+        │                      # 4 chart types: Area, Area Split, Candles, Bar
         ├── CanvasChart.jsx    # Physics canvas: candles, 5 indicators, VWAP, MTF, VP, DOM
+        │                      # ★ detectDataChanges in rAF loop (independent of React ticks)
+        │                      # ★ skipAnimRef: instant first 2 frames, then 300ms interpolation
+        │                      # ★ page visibility gate (skips drawFrame when tab hidden)
+        │                      # ★ zoomTarget initialized at mount (no useEffect delay)
+        │                      # ★ area-split chart type (trading-charts style green/red gradient)
         │                      # Smooth 300ms tick interp, 450ms slide, smoothed price scale
-        │                      # Font min 11px (no 9px/10px), chart colors #10b981/#ef4444
         ├── TradePanel.jsx     # CALL/PUT, TP/SL, martingale, compounding, entry orders
         │                      # Risk mgmt, position cards, extend, journal notes
-        │                      # Sub-containers: .tp-sub pattern for all collapsible sections
+        │                      # Math.abs() on P&L display (fixed double negative)
         ├── SettingsModal.jsx   # Tabbed settings: Chart / Overlays / Alerts
+        │                      # 4 chart types: Area, Area Split, Candles, Bar
         ├── HistoryView.jsx    # Trade history + CSV export, notes
         ├── AnalyticsView.jsx  # P&L analytics, win rate, pie chart
         ├── JournalView.jsx    # Annotated positions, searchable
@@ -157,6 +166,33 @@ No polling. Each tick triggers redraw on next animation frame (~16ms).
 | UTC clock | `ChartArea.jsx` — right-aligned amber pill badge |
 | Console log cleanup | `useMarketData.js` — removed tick stream debug logs |
 
+### Bug Fixes (June 30 session)
+
+| Bug | Fix |
+|-----|-----|
+| Double negative currency display | `TradePanel.jsx` — `Math.abs(pos.pnl)` |
+| Timeframe change blanks chart | `App.jsx` — check candleStoreRef cache before clearing |
+| Win/Loss is pure RNG | `DemoEngine.js` — price-driven: CALL wins when exitPrice > entryPrice |
+| Chart laggy on first load | Removed seedDayHistory, chart starts with 1 real candle from tick |
+| fetchCandles separate WebSocket | `DerivFeed.js` — reuse shared WS via `_send()` |
+| Per-tick state updates flood React | `App.jsx` — rAF-batched `flushTickSyncs` |
+| Chart transitions on first load | `CanvasChart.jsx` — skipAnimRef (2→1→0), zoom at mount, unmounted during load |
+| Stale setInitialZoomDone refs | `CanvasChart.jsx` — removed orphaned calls |
+| area-split gradient IndexSizeError | `CanvasChart.jsx` — clamped baselineRatio to [0,1] |
+
+### Borrowed from trading-charts (adrianmanchev/trading-charts)
+
+| Pattern | Source | Our Implementation |
+|---------|--------|-------------------|
+| Area split-color chart | `chart.js` d3 area + gradient | CanvasChart `area-split` type |
+| Chart unmounted during load | `Chart.vue` `v-if="!loading"` | ChartArea `mappedCandles.length > 0` placeholder |
+| Instant first render | d3 `.join(enter)` no transition | `skipAnimRef` countdown 2→1→0 |
+| Zoom at mount | d3 no lifecycle delay | `zoomTarget` IIFE in useRef, removed useEffect |
+| Page visibility gate | `visibility.js` | `document.hidden` skip in rAF stepFn |
+| Precise decimal math | `arithmetic.js` / `big.js` | `mul/add/sub/div/round2` helpers in DemoEngine |
+| rAF-driven change detection | `chart.js` update() | `detectDataChanges()` at 60fps in rAF loop |
+| History-before-render | `Chart.vue` klines → chart() | `historyReadyRef` gate, fetchCandles before render |
+
 ## Production Deployment (2026-06-30)
 
 | Component | Location | Port |
@@ -176,7 +212,8 @@ No polling. Each tick triggers redraw on next animation frame (~16ms).
 - **Docker --no-cache required** when changing VITE_WS_URL build arg
 - **VITE_WS_URL** env var controls WS endpoint (dev: ws://localhost:8091)
 
-- [Session June 30 Bugs](memory/session-2026-06-30-bugs.md) — 3 fixed, 4 identified: double negative, timeframe blanking, RNG resolution, chart lag
+- [Session June 30 Bugs](memory/session-2026-06-30-bugs.md) — ALL 7 BUGS FIXED
+- [trading-charts Study](memory/trading-charts-study.md) — Complete analysis of adrianmanchev/trading-charts patterns borrowed
 
 ## Remaining (9 items — all need backend infrastructure)
 

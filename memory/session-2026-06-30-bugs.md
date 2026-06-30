@@ -1,8 +1,9 @@
 ---
 name: session-2026-06-30-bugs
-description: Bugs found and fixes applied during June 30 session — double negative, timeframe blanking, chart lag, RNG resolution
+description: Bugs found and fixes applied during June 30 session — ALL 7 RESOLVED
 metadata:
   type: project
+  status: complete
 ---
 
 # Session June 30 — Bug Discoveries & Fixes
