@@ -790,42 +790,6 @@ export default function App() {
 
           {activeTab ? (<>
           <div className="chart-area-wrapper">
-            {/* ── Connection status bar ── */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '2px 14px',
-              fontSize: 10, color: 'var(--text-muted)',
-              borderBottom: '1px solid var(--bg-elevated)',
-              minHeight: 20,
-            }}>
-              {/* Binance status */}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: binanceData.connected ? 'var(--success)' : 'var(--text-muted)',
-                  boxShadow: binanceData.connected ? '0 0 4px var(--success)' : 'none',
-                  transition: 'all 0.3s',
-                }} />
-                <span style={{ color: binanceData.connected ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                  Binance{binanceData.connected && binanceData.subCount > 0 ? ` (${binanceData.subCount})` : ''}
-                </span>
-              </span>
-              {/* Deriv status */}
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: marketData.connected ? 'var(--success)' : 'var(--text-muted)',
-                  boxShadow: marketData.connected ? '0 0 4px var(--success)' : 'none',
-                  transition: 'all 0.3s',
-                }} />
-                <span style={{ color: marketData.connected ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                  Deriv{marketData.connected && marketData.subCount > 0 ? ` (${marketData.subCount})` : ''}
-                </span>
-              </span>
-              {/* Total connected feeds */}
-              <span style={{ marginLeft: 'auto', opacity: 0.6 }}>
-                {(binanceData.connected || marketData.connected) ? 'Live' : 'Connecting...'}
-              </span>
-            </div>
             <div className="tab-bar">
               {tabs.map(tab => (
                 <div
