@@ -47,15 +47,22 @@ export default function App() {
     const alignedNow = Math.floor(Date.now() / tfMs) * tfMs
     const candles = []
     const count = tf === '1m' ? 1440 : Math.floor(86400 / (tfMs / 1000))
+    // Match PriceFeedEngine volatility (0.001 = 0.1%) so seed + live candles look consistent
+    const vol = 0.001
+    // Simulate sub-ticks per candle (~2/sec × 60s = 120 sub-ticks for 1m)
+    const subTicks = Math.max(1, Math.floor(tfMs / 500))
     let price = parseFloat((basePrice || 1).toFixed(5))
-    // Random-walk seeded history — generates plausible-looking chart data
     for (let i = 0; i < count; i++) {
-      const volatility = price * 0.0003  // 0.03% per candle
-      const change = (Math.random() - 0.5) * volatility * 2
-      const open = price
-      const close = open + change
-      const high = Math.max(open, close) + Math.random() * volatility * 0.5
-      const low = Math.min(open, close) - Math.random() * volatility * 0.5
+      let open = price
+      let high = open
+      let low = open
+      // Generate sub-ticks within this candle
+      for (let s = 0; s < subTicks; s++) {
+        price = parseFloat((price + price * (Math.random() - 0.48) * vol / Math.sqrt(subTicks)).toFixed(7))
+        if (price > high) high = price
+        if (price < low) low = price
+      }
+      const close = price
       candles.push({
         time: alignedNow - (count - 1 - i) * tfMs,
         open: parseFloat(open.toFixed(5)),
@@ -64,7 +71,6 @@ export default function App() {
         close: parseFloat(close.toFixed(5)),
         v: Math.floor(Math.random() * 50) + 1,
       })
-      price = close
     }
     const store = candleStoreRef.current.get(tabId) || new Map()
     store.set(tf, candles)
