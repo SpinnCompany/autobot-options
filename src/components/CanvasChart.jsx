@@ -1210,7 +1210,6 @@ export const CanvasChart = ({
         candlesTransitionRef.current = null; prevCandlesRef.current = []
         smoothBoundsRef.current = null
         skipAnimRef.current = 2  // re-enable instant-render gate
-        setInitialZoomDone(false)
         dataSnapshotRef.current = { key, length: candles.length, lastT: latest.t }
         needsRedraw.current = true
         return
@@ -1331,7 +1330,6 @@ export const CanvasChart = ({
     interpRef.current = null;
     candlesTransitionRef.current = null;
     prevCandlesRef.current = [];
-    setInitialZoomDone(true);
     needsRedraw.current = true;
   }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
