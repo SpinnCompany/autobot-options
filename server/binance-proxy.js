@@ -19,40 +19,60 @@ const PORT = parseInt(process.argv[2]) || 8092;
 const BINANCE_WS = 'wss://stream.binance.com:9443/ws';
 const BINANCE_REST = 'https://api.binance.com/api/v3';
 
-// ── Supported trading pairs ──────────────────────────────────
-const TRADING_PAIRS = [
-  'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT',
-  'DOGEUSDT', 'DOTUSDT', 'AVAXUSDT', 'MATICUSDT', 'LINKUSDT',
-  'UNIUSDT', 'ATOMUSDT', 'ETCUSDT', 'FILUSDT', 'TRXUSDT',
-  'APTUSDT', 'ARBUSDT', 'OPUSDT', 'SUIUSDT', 'PEPEUSDT',
+// ── Dynamic symbol registry — fetched from Binance exchangeInfo ──
+let tradingPairs = [];        // [{symbol, display_name, baseAsset, color}]
+let tradingSymbols = [];      // ['BTCUSDT', 'ETHUSDT', ...]
+
+// Color palette for dynamically discovered coins
+const COIN_COLORS = [
+  '#f7931a', '#627eea', '#9945ff', '#23292f', '#0033ad', '#c2a633',
+  '#e6007a', '#e84142', '#8247e5', '#2a5ada', '#ff007a', '#2e3148',
+  '#328332', '#0090ff', '#ff0013', '#28a0f0', '#ff0420', '#4da2ff',
+  '#00843d', '#f0b90b', '#26a17b', '#e84142', '#1a1a1a',
 ];
 
-// Display metadata per symbol
-const SYMBOL_META = {
-  BTCUSDT:  { display_name: 'BTC/USDT',  icon: 'BT', color: '#f7931a' },
-  ETHUSDT:  { display_name: 'ETH/USDT',  icon: 'ET', color: '#627eea' },
-  SOLUSDT:  { display_name: 'SOL/USDT',  icon: 'SO', color: '#9945ff' },
-  XRPUSDT:  { display_name: 'XRP/USDT',  icon: 'XR', color: '#23292f' },
-  ADAUSDT:  { display_name: 'ADA/USDT',  icon: 'AD', color: '#0033ad' },
-  DOGEUSDT: { display_name: 'DOGE/USDT', icon: 'DO', color: '#c2a633' },
-  DOTUSDT:  { display_name: 'DOT/USDT',  icon: 'DT', color: '#e6007a' },
-  AVAXUSDT: { display_name: 'AVAX/USDT', icon: 'AV', color: '#e84142' },
-  MATICUSDT:{ display_name: 'MATIC/USDT',icon: 'MA', color: '#8247e5' },
-  LINKUSDT: { display_name: 'LINK/USDT', icon: 'LK', color: '#2a5ada' },
-  UNIUSDT:  { display_name: 'UNI/USDT',  icon: 'UN', color: '#ff007a' },
-  ATOMUSDT: { display_name: 'ATOM/USDT', icon: 'AT', color: '#2e3148' },
-  ETCUSDT:  { display_name: 'ETC/USDT',  icon: 'EC', color: '#328332' },
-  FILUSDT:  { display_name: 'FIL/USDT',  icon: 'FI', color: '#0090ff' },
-  TRXUSDT:  { display_name: 'TRX/USDT',  icon: 'TR', color: '#ff0013' },
-  APTUSDT:  { display_name: 'APT/USDT',  icon: 'AP', color: '#000000' },
-  ARBUSDT:  { display_name: 'ARB/USDT',  icon: 'AR', color: '#28a0f0' },
-  OPUSDT:   { display_name: 'OP/USDT',   icon: 'OP', color: '#ff0420' },
-  SUIUSDT:  { display_name: 'SUI/USDT',  icon: 'SU', color: '#4da2ff' },
-  PEPEUSDT: { display_name: 'PEPE/USDT', icon: 'PE', color: '#00843d' },
-};
+async function fetchExchangeInfo() {
+  try {
+    const res = await fetch(`${BINANCE_REST}/exchangeInfo`);
+    const data = await res.json();
+    const symbols = data.symbols || [];
 
-// Build the stream URL: subscribe to @ticker for all pairs
-const TICKER_STREAMS = TRADING_PAIRS.map(p => `${p.toLowerCase()}@ticker`);
+    // Filter: only TRADING spot pairs quoted in USDT
+    const usdtPairs = symbols.filter(s =>
+      s.status === 'TRADING' &&
+      s.quoteAsset === 'USDT' &&
+      s.isSpotTradingAllowed !== false
+    );
+
+    tradingPairs = usdtPairs.map((s, i) => ({
+      symbol: s.symbol,
+      display_name: `${s.baseAsset}/USDT`,
+      baseAsset: s.baseAsset,
+      market: 'cryptocurrency',
+      subtype: 'crypto',
+      color: COIN_COLORS[i % COIN_COLORS.length],
+      // Pass through for the browser-side mapper
+      tickSize: (s.filters || []).find(f => f.filterType === 'PRICE_FILTER')?.tickSize || '0.0001',
+    }));
+
+    tradingSymbols = tradingPairs.map(p => p.symbol);
+    console.log(`[binance-proxy] Fetched ${tradingSymbols.length} USDT pairs from exchangeInfo`);
+
+    // Update cached response and resubscribe
+    cachedSymbols = buildSymbolsResponse();
+    broadcast({ type: 'symbols', symbols: cachedSymbols });
+
+    // Subscribe to tickers for all pairs
+    if (binanceWs && binanceWs.readyState === WebSocket.OPEN) {
+      const streams = tradingSymbols.map(s => `${s.toLowerCase()}@ticker`);
+      binanceWs.send(JSON.stringify({ method: 'SUBSCRIBE', params: streams, id: Date.now() }));
+    }
+  } catch (err) {
+    console.error('[binance-proxy] Failed to fetch exchangeInfo:', err.message);
+    // Retry after 30s
+    setTimeout(fetchExchangeInfo, 30000);
+  }
+}
 
 // ── State ────────────────────────────────────────────────────
 let binanceWs = null;
@@ -88,17 +108,15 @@ function granularityToInterval(granularity) {
 
 // ── Build symbol list response ───────────────────────────────
 function buildSymbolsResponse() {
-  return TRADING_PAIRS.map(sym => {
-    const meta = SYMBOL_META[sym] || {};
-    return {
-      symbol: sym,
-      display_name: meta.display_name || sym,
-      market: 'cryptocurrency',
-      subtype: 'crypto',
-      icon: meta.icon || 'CR',
-      color: meta.color || '#f7931a',
-    };
-  });
+  return tradingPairs.map(p => ({
+    symbol: p.symbol,
+    display_name: p.display_name,
+    market: p.market,
+    subtype: p.subtype,
+    color: p.color,
+    baseAsset: p.baseAsset,
+    tickSize: p.tickSize,
+  }));
 }
 
 // ── Broadcast to all frontend clients ────────────────────────
@@ -130,16 +148,14 @@ function connectBinance() {
     broadcast({ type: 'status', status: 'connected' });
     reconnectDelay = 2000;
 
-    // Subscribe to ticker streams
-    const streams = activeSubs.size > 0
-      ? [...activeSubs].map(s => `${s.toLowerCase()}@ticker`)
-      : TICKER_STREAMS;
-    const subMsg = JSON.stringify({
-      method: 'SUBSCRIBE',
-      params: streams,
-      id: 1,
-    });
-    binanceWs.send(subMsg);
+    // Subscribe to ticker streams when exchangeInfo has loaded.
+    // If not yet loaded, fetchExchangeInfo will subscribe after it completes.
+    if (tradingSymbols.length > 0) {
+      const streams = activeSubs.size > 0
+        ? [...activeSubs].map(s => `${s.toLowerCase()}@ticker`)
+        : tradingSymbols.map(s => `${s.toLowerCase()}@ticker`);
+      binanceWs.send(JSON.stringify({ method: 'SUBSCRIBE', params: streams, id: 1 }));
+    }
   };
 
   binanceWs.onmessage = (event) => {
@@ -301,4 +317,5 @@ process.on('SIGINT', () => {
 });
 
 // ── Start ────────────────────────────────────────────────────
-connectBinance();
+// Fetch exchange info first, then connect WS (connectBinance called after fetch)
+fetchExchangeInfo().then(() => connectBinance());

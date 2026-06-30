@@ -1,65 +1,45 @@
 /**
- * Binance symbol mapping — normalizes raw Binance symbols to our asset format.
+ * Binance symbol mapping — normalizes proxy symbol data to our asset format.
+ *
+ * Symbols are discovered dynamically from Binance exchangeInfo via the proxy.
+ * Icons come from the cryptocurrency-icons CDN (SVG), with a generated
+ * SVG circle as fallback for coins not in the icon set.
  *
  * Asset shape produced:
  *   { name, displayName, price: 0, change: '0.00', category: 'Crypto',
- *     color, icon, payout: 88, source: 'binance', brokerSymbol }
+ *     color, icon (CDN URL), iconFallback (SVG data URI), payout: 90,
+ *     source: 'binance', brokerSymbol }
  */
 
-const BINANCE_MARKET_CONFIG = {
-  cryptocurrency: { category: 'Crypto', payout: 90, order: 3 },
-};
+const ICON_CDN = 'https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/icon';
 
-const BINANCE_TRADING_PAIRS = [
-  ['BTCUSDT',  'BTC/USDT',  'BT', '#f7931a'],
-  ['ETHUSDT',  'ETH/USDT',  'ET', '#627eea'],
-  ['SOLUSDT',  'SOL/USDT',  'SO', '#9945ff'],
-  ['XRPUSDT',  'XRP/USDT',  'XR', '#23292f'],
-  ['ADAUSDT',  'ADA/USDT',  'AD', '#0033ad'],
-  ['DOGEUSDT', 'DOGE/USDT', 'DO', '#c2a633'],
-  ['DOTUSDT',  'DOT/USDT',  'DT', '#e6007a'],
-  ['AVAXUSDT', 'AVAX/USDT', 'AV', '#e84142'],
-  ['MATICUSDT','MATIC/USDT','MA', '#8247e5'],
-  ['LINKUSDT', 'LINK/USDT', 'LK', '#2a5ada'],
-  ['UNIUSDT',  'UNI/USDT',  'UN', '#ff007a'],
-  ['ATOMUSDT', 'ATOM/USDT', 'AT', '#2e3148'],
-  ['ETCUSDT',  'ETC/USDT',  'EC', '#328332'],
-  ['FILUSDT',  'FIL/USDT',  'FI', '#0090ff'],
-  ['TRXUSDT',  'TRX/USDT',  'TR', '#ff0013'],
-  ['APTUSDT',  'APT/USDT',  'AP', '#000000'],
-  ['ARBUSDT',  'ARB/USDT',  'AR', '#28a0f0'],
-  ['OPUSDT',   'OP/USDT',   'OP', '#ff0420'],
-  ['SUIUSDT',  'SUI/USDT',  'SU', '#4da2ff'],
-  ['PEPEUSDT', 'PEPE/USDT', 'PE', '#00843d'],
-];
-
-// Build lookup map: raw symbol → metadata
-const PAIR_MAP = new Map();
-for (const [sym, name, icon, color] of BINANCE_TRADING_PAIRS) {
-  PAIR_MAP.set(sym, { name, icon, color });
+// SVG data URI — colored circle with ticker label (fallback when CDN 404s)
+function fallbackIconSVG(label, color) {
+  const fontSize = label.length > 3 ? 8.5 : label.length > 2 ? 11 : 14;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="15.5" fill="${color}"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-family="system-ui,sans-serif" font-size="${fontSize}" font-weight="700">${label}</text></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
 
-/**
- * Normalize a raw Binance symbol object (from proxy's `get_symbols` response)
- * into our standard asset format. Returns null if the symbol is unrecognized.
- */
 export function normalizeBinanceSymbol(raw) {
-  if (!raw || !raw.symbol) return null;
+  if (!raw || !raw.symbol || !raw.baseAsset) return null;
 
-  const meta = PAIR_MAP.get(raw.symbol);
-  if (!meta) return null;
-
-  const marketConfig = BINANCE_MARKET_CONFIG[raw.market] || BINANCE_MARKET_CONFIG.cryptocurrency;
+  const name = raw.display_name || `${raw.baseAsset}/USDT`;
+  const color = raw.color || '#f7931a';
+  const slug = raw.baseAsset.toLowerCase();
+  // Real SVG icon from CDN, with generated SVG as fallback
+  const icon = `${ICON_CDN}/${slug}.svg`;
+  const iconFallback = fallbackIconSVG(raw.baseAsset, color);
 
   return {
-    name: meta.name,
-    displayName: meta.name,
+    name,
+    displayName: name,
     price: 0,
     change: '0.00',
-    category: marketConfig.category,
-    color: meta.color,
-    icon: meta.icon,
-    payout: marketConfig.payout,
+    category: 'Crypto',
+    color,
+    icon,
+    iconFallback,
+    payout: 90,
     spread: null,
     dayHigh: null,
     dayLow: null,

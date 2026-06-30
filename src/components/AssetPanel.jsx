@@ -93,6 +93,11 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
                     fontSize: 15, lineHeight: '28px',
                     letterSpacing: -1,
                   }}>{asset.icon}{asset.icon2}</span>
+                ) : asset.source === 'binance' ? (
+                  /* Real SVG icon from CDN, fallback to generated SVG on 404 */
+                  <img src={asset.icon} alt={asset.name}
+                    onError={e => { if (asset.iconFallback) e.target.src = asset.iconFallback }}
+                    style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0 }} />
                 ) : (
                   /* All other assets — text badge icon */
                   <span style={{
