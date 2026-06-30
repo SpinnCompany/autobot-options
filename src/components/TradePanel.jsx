@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ChevronUp, ChevronDown, ChevronRight, Minus, Plus, X, Check, Divide, CornerDownLeft, Volume2, VolumeX } from 'lucide-react'
 import { DURATIONS, AMOUNT_PRESETS, getAssetColor } from '../data/mockData'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
@@ -13,6 +14,7 @@ function fmtTime(remaining) {
 }
 
 function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, expanded, onToggle }) {
+  const { t } = useTranslation()
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     if (pos.status !== 'open') return
@@ -78,40 +80,40 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
       {expanded && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>ID</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('common.id')}</span>
             <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{pos.id.slice(0, 12)}…</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Investment</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('common.investment')}</span>
             <span style={{ fontWeight: 600 }}>${pos.amount.toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Payout</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('common.payout')}</span>
             <span style={{ fontWeight: 600, color: 'var(--success)' }}>+${potentialPayout.toFixed(2)} ({payoutPercent}%)</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Entry</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('common.entry')}</span>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pos.entryPrice?.toFixed(5)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Duration</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('common.duration')}</span>
             <span>{pos.duration}s</span>
           </div>
           {pos.tp && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>TP</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('common.tp')}</span>
               <span style={{ fontWeight: 600, color: 'var(--success)', fontVariantNumeric: 'tabular-nums' }}>{pos.tp.toFixed(5)}</span>
             </div>
           )}
           {pos.sl && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>SL</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('common.sl')}</span>
               <span style={{ fontWeight: 600, color: 'var(--danger)', fontVariantNumeric: 'tabular-nums' }}>{pos.sl.toFixed(5)}</span>
             </div>
           )}
           {pos.status !== 'open' && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Exit</span>
+              <span style={{ color: 'var(--text-muted)' }}>{t('common.exit')}</span>
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pos.exitPrice?.toFixed(5) || '—'}</span>
             </div>
           )}
@@ -121,7 +123,7 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
               type="text"
               value={pos.note || ''}
               onChange={e => onSetNote?.(pos.id, e.target.value)}
-              placeholder="Add note…"
+              placeholder={t('trade.addNote')}
               onClick={e => e.stopPropagation()}
               style={{
                 width: '100%', padding: '4px 6px', borderRadius: 4, fontSize: 11,
@@ -137,11 +139,11 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
       {/* Note indicator on collapsed card */}
       {!expanded && pos.note && (
         <div style={{ fontSize: 11, color: 'var(--brand)', opacity: 0.6, marginTop: 2 }}>
-          <span style={{fontWeight:600,color:'var(--brand)',marginRight:2}}>Note:</span>{pos.note.slice(0, 40)}{pos.note.length > 40 ? '...' : ''}
+          <span style={{fontWeight:600,color:'var(--brand)',marginRight:2}}>{t('trade.noteLabel')}:</span>{pos.note.slice(0, 40)}{pos.note.length > 40 ? '...' : ''}
         </div>
       )}
 
-      {/* Sell now + Double Up buttons */}
+            {/* Sell now + Double Up buttons */}
       {pos.status === 'open' && (
         <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
           <button onClick={(e) => { e.stopPropagation(); onClose(pos.id) }} style={{
@@ -149,7 +151,7 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
             background: 'var(--bg-input)', border: '1px solid var(--border-default)',
             color: 'var(--danger)', cursor: 'pointer', fontSize: 11, fontWeight: 600,
           }}>
-            Sell — ${buyback.toFixed(2)}
+            {t('trade.sell')} — ${buyback.toFixed(2)}
           </button>
           {onDoubleUp && (
             <button onClick={(e) => { e.stopPropagation(); onDoubleUp(pos) }} style={{
@@ -157,11 +159,11 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
               background: 'var(--bg-input)', border: '1px solid var(--border-default)',
               color: 'var(--brand)', cursor: 'pointer', fontSize: 11, fontWeight: 600,
             }}>
-              Double Up
+              {t('trade.doubleUp')}
             </button>
           )}
           {onExtend && (
-            <button onClick={(e) => { e.stopPropagation(); onExtend(pos.id, 60) }} title="Extend by 60s (fee: 10%)" style={{
+            <button onClick={(e) => { e.stopPropagation(); onExtend(pos.id, 60) }} title={t('trade.extend')} style={{
               flex: 1, padding: '4px 0', borderRadius: 6,
               background: 'var(--bg-input)', border: '1px solid var(--border-default)',
               color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, fontWeight: 600,
@@ -176,6 +178,7 @@ function PositionCard({ pos, assets, onClose, onDoubleUp, onExtend, onSetNote, e
 }
 
 export default function TradePanel({ selectedAsset, assets, positions, balance, onPlaceTrade, onClosePosition, soundMuted, onToggleSound, dailyPnl = 0, confirmTrades = false, lastTradeResult, lastTradeProfit = 0, baseAmount = 100, onDoubleUp, onExtendPosition, onSetPositionNote, onResetAccount, mobileOpen, onCloseMobile, pendingOrders = [], onPlacePendingOrder, onCancelPendingOrder, dailyTradeCount = 0, dailyLossLimit = 0, maxPositionPct = 0, maxDailyTrades = 0, onSetDailyLossLimit, onSetMaxPositionPct, onSetMaxDailyTrades, minPayoutPct = 0, onSetMinPayoutPct, newsBlockEnabled = false, newsBlockLevels = { high: true, medium: true, low: false }, onSetNewsBlockEnabled, onSetNewsBlockLevels }) {
+  const { t } = useTranslation()
   // ── Persisted trade defaults ──
   const [amount, setAmount] = useState(() => {
     try { return localStorage.getItem('autobot_trade_amount') || '100' } catch { return '100' }
@@ -389,13 +392,13 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       // Stop conditions
       if (daTakeProfit > 0 && pnl >= daTakeProfit) {
         setDaEnabled(false)
-        addToast(`D'Alembert TP hit: +$${pnl.toFixed(2)}`, 'success')
+        addToast(`${t('trade.dalembertTpHit')}: +$${pnl.toFixed(2)}`, 'success')
       } else if (daStopLoss > 0 && pnl <= -daStopLoss) {
         setDaEnabled(false)
-        addToast(`D'Alembert SL hit: -$${Math.abs(pnl).toFixed(2)}`, 'error')
+        addToast(`${t('trade.dalembertSlHit')}: -$${Math.abs(pnl).toFixed(2)}`, 'error')
       } else if (maxContracts > 0 && daStepCount + 1 >= maxContracts) {
         setDaEnabled(false)
-        addToast(`D'Alembert max contracts (${maxContracts}) reached`, 'error')
+        addToast(`${t('trade.dalembertMaxContracts')} (${maxContracts}) ${t('trade.maxContractsReached')}`, 'error')
       } else if (lastTradeResult === 'loss') {
         const next = currentStake + unit
         if (maxStake > 0 && next > maxStake) {
@@ -532,7 +535,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
           <button
             onClick={onToggleSound}
-            title={soundMuted ? 'Unmute sounds' : 'Mute sounds'}
+            title={soundMuted ? t('trade.unmuteSounds') : t('trade.muteSounds')}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
               color: soundMuted ? 'var(--text-muted)' : 'var(--text-secondary)',
@@ -560,7 +563,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* Duration */}
       <div style={{ padding: '0 10px' }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4, marginTop: 6 }}>
-          Duration · {durationMs}
+          {t('trade.durationLabel')} · {durationMs}
         </div>
         <div className="duration-buttons">
           {DURATIONS.map(d => (
@@ -578,7 +581,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* Amount with +/- stepper */}
       <div style={{ padding: '0 10px', marginTop: 10 }}>
         <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 4 }}>
-          Investment
+          {t('common.investment')}
         </div>
         <div style={{ display: 'flex', gap: 0, alignItems: 'stretch' }}>
           <button
@@ -611,13 +614,13 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
           ><Plus size={14} /></button>
         </div>
         <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-          <button onClick={halveAmount} title="Halve amount"
+          <button onClick={halveAmount} title={t('trade.halveAmount')}
             style={{
               flex: 1, padding: '3px 0', borderRadius: 5, fontSize: 11, fontWeight: 600,
               color: 'var(--text-muted)', background: 'var(--bg-input)',
               border: '1px solid var(--border-default)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}><Divide size={14} /></button>
-          <button onClick={doubleAmount} title="Double amount"
+          <button onClick={doubleAmount} title={t('trade.doubleAmount')}
             style={{
               flex: 1, padding: '3px 0', borderRadius: 5, fontSize: 11, fontWeight: 600,
               color: 'var(--text-muted)', background: 'var(--bg-input)',
@@ -638,7 +641,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* Payout */}
       <div style={{ padding: '0 10px', marginTop: 10 }}>
         <div className="payout-display" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Payout</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('common.payout')}</span>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)' }}>
             +${payout.toFixed(2)}
           </span>
@@ -648,7 +651,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* ── TP / SL ── */}
       <div className={`tp-sub ${showAdvanced ? 'active' : ''}`} style={{ margin: '6px 10px' }}>
         <div className="tp-sub-hdr" onClick={() => setShowAdvanced(prev => !prev)}>
-          <span className="tp-sub-hdr-label">TP / SL</span>
+          <span className="tp-sub-hdr-label">{t('trade.tpSl')}</span>
           {(takeProfit || stopLoss) && (
             <span className="tp-sub-badge on-success" style={{ fontSize: 11 }}>
               {[takeProfit && 'TP', stopLoss && 'SL'].filter(Boolean).join(' · ')}
@@ -664,7 +667,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                 fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center', marginTop: 2,
                 fontVariantNumeric: 'tabular-nums',
               }}>
-                Current: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                {t('trade.currentPrice')}: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                   {currentAsset.price.toFixed(5)}
                 </span>
               </div>
@@ -672,11 +675,11 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--success)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Take Profit
+                  {t('trade.takeProfit')}
                   {parseFloat(takeProfit) > 0 && <Check size={10} style={{ opacity: 0.7 }} />}
                 </div>
                 <input type="number" value={takeProfit} onChange={e => setTakeProfit(e.target.value)}
-                  placeholder="Price level"
+                  placeholder={t('trade.priceLevel')}
                   style={{
                     width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
                     background: 'var(--bg-input)', border: parseFloat(takeProfit) > 0 ? '1px solid var(--success)' : '1px solid var(--border-default)',
@@ -702,11 +705,11 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--danger)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  Stop Loss
+                  {t('trade.stopLoss')}
                   {parseFloat(stopLoss) > 0 && <Check size={10} style={{ opacity: 0.7 }} />}
                 </div>
                 <input type="number" value={stopLoss} onChange={e => setStopLoss(e.target.value)}
-                  placeholder="Price level"
+                  placeholder={t('trade.priceLevel')}
                   style={{
                     width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
                     background: 'var(--bg-input)', border: parseFloat(stopLoss) > 0 ? '1px solid var(--danger)' : '1px solid var(--border-default)',
@@ -734,32 +737,32 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             {/* Hint text */}
             {(parseFloat(takeProfit) > 0 || parseFloat(stopLoss) > 0) && (
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, textAlign: 'center' }}>
-                TP/SL trigger on next price tick · positions auto-close
+                {t('trade.tpSlHint')}
               </div>
             )}
             {/* ── Martingale (Loss Recovery) ── */}
             <div className={`tp-sub ${mgEnabled ? 'active' : ''}`}>
               <div className="tp-sub-hdr" onClick={() => persistMg(!mgEnabled)}>
-                <span className="tp-sub-hdr-label">Martingale</span>
+                <span className="tp-sub-hdr-label">{t('trade.martingale')}</span>
                 <button className={`tp-sub-badge ${mgEnabled ? 'on-danger' : 'off'}`}
                   onClick={e => { e.stopPropagation(); persistMg(!mgEnabled) }}>
-                  {mgEnabled ? 'ON' : 'OFF'}
+                  {mgEnabled ? t('common.on') : t('common.off')}
                 </button>
                 {showAdvanced ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
               </div>
               {mgEnabled && (
                 <div className="tp-sub-body">
                   <div className="tp-sub-seg">
-                    <button className={mgIsAuto ? 'on' : ''} onClick={() => persistMgAuto(true)}>Auto</button>
-                    <button className={!mgIsAuto ? 'on' : ''} onClick={() => persistMgAuto(false)}>Manual</button>
+                    <button className={mgIsAuto ? 'on' : ''} onClick={() => persistMgAuto(true)}>{t('common.auto')}</button>
+                    <button className={!mgIsAuto ? 'on' : ''} onClick={() => persistMgAuto(false)}>{t('common.manual')}</button>
                   </div>
                   {mgIsAuto ? (
                     <div className="tp-sub-field">
                       <label>×</label>
                       <input type="number" className="tp-sub-input" style={{ width: 56 }} value={mgMultiplier} min="1.1" max="10" step="0.1" onChange={e => persistMgMult(parseFloat(e.target.value) || 2)} />
-                      <label>Max</label>
+                      <label>{t('common.max')}</label>
                       <input type="number" className="tp-sub-input" style={{ width: 44 }} value={mgMaxSteps} min="1" max="20" onChange={e => persistMgMaxSteps(parseInt(e.target.value) || 8)} />
-                      <label>steps</label>
+                      <label>{t('common.steps')}</label>
                     </div>
                   ) : (
                     <>
@@ -776,15 +779,15 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                         {mgSteps.length < 12 && <button onClick={() => { persistMgSteps([...mgSteps, (mgSteps[mgSteps.length - 1] || 10) * 2]); persistMgStepsOn([...mgStepsOn, true]) }} style={{ padding: '3px 8px', borderRadius: 5, background: 'var(--pit-surface-input)', border: '1px dashed var(--pit-border)', color: 'var(--pit-text-muted)', cursor: 'pointer', fontSize: 11 }}><Plus size={12} /></button>}
                       </div>
                       <div className="tp-sub-actions">
-                        <button onClick={mgAdvance}>Advance after loss</button>
-                        <button onClick={mgReset}>Reset</button>
+                        <button onClick={mgAdvance}>{t('trade.advanceAfterLoss')}</button>
+                        <button onClick={mgReset}>{t('common.reset')}</button>
                       </div>
                     </>
                   )}
                   <div className="tp-sub-hint">
-                    {mgStepIndex === -1 ? `Base: $${baseAmount || 100} · waiting for loss`
-                      : mgIsAuto ? `Loss ${mgStepIndex + 1}/${mgMaxSteps} · Next: $${((parseFloat(amount) || baseAmount) * mgMultiplier).toFixed(2)}`
-                      : `Loss ${mgStepIndex + 1}/${mgSteps.length} · Current: $${mgSteps[mgStepIndex]}`}
+                    {mgStepIndex === -1 ? `${t('trade.baseAmount')}: $${baseAmount || 100} · ${t('trade.waitingForLoss')}`
+                      : mgIsAuto ? `${t('common.loss')} ${mgStepIndex + 1}/${mgMaxSteps} · ${t('trade.nextStake')}: $${((parseFloat(amount) || baseAmount) * mgMultiplier).toFixed(2)}`
+                      : `${t('common.loss')} ${mgStepIndex + 1}/${mgSteps.length} · ${t('trade.currentStake')}: $${mgSteps[mgStepIndex]}`}
                   </div>
                 </div>
               )}
@@ -793,40 +796,40 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             {/* ── D'Alembert (Unit Step Strategy) ── */}
             <div className={`tp-sub ${daEnabled ? 'active' : ''}`}>
               <div className="tp-sub-hdr" onClick={() => persistDa(!daEnabled)}>
-                <span className="tp-sub-hdr-label">D'Alembert</span>
+                <span className="tp-sub-hdr-label">{t('trade.dalembert')}</span>
                 <button className={`tp-sub-badge ${daEnabled ? 'on-danger' : 'off'}`}
                   onClick={e => { e.stopPropagation(); persistDa(!daEnabled) }}>
-                  {daEnabled ? 'ON' : 'OFF'}
+                  {daEnabled ? t('common.on') : t('common.off')}
                 </button>
                 {showAdvanced ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
               </div>
               {daEnabled && (
                 <div className="tp-sub-body">
                   <div className="tp-sub-seg">
-                    <button className={daIsAuto ? 'on' : ''} onClick={() => persistDaAuto(true)}>Auto</button>
-                    <button className={!daIsAuto ? 'on' : ''} onClick={() => persistDaAuto(false)}>Manual</button>
+                    <button className={daIsAuto ? 'on' : ''} onClick={() => persistDaAuto(true)}>{t('common.auto')}</button>
+                    <button className={!daIsAuto ? 'on' : ''} onClick={() => persistDaAuto(false)}>{t('common.manual')}</button>
                   </div>
                   <div className="tp-sub-field" style={{ flexWrap: 'wrap', gap: 4 }}>
-                    <label>Unit</label>
+                    <label>{t('trade.unit')}</label>
                     <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daUnit} min="1" max="1000" step="1" onChange={e => persistDaUnit(parseFloat(e.target.value) || 5)} />
-                    <label>Init</label>
+                    <label>{t('trade.init')}</label>
                     <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daInitialStake} min="1" max="10000" step="1" onChange={e => persistDaInitial(parseFloat(e.target.value) || 10)} />
-                    <label>TP</label>
+                    <label>{t('common.tp')}</label>
                     <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daTakeProfit} min="0" max="100000" step="10" onChange={e => persistDaTP(parseFloat(e.target.value) || 100)} />
-                    <label>SL</label>
+                    <label>{t('common.sl')}</label>
                     <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daStopLoss} min="0" max="100000" step="10" onChange={e => persistDaSL(parseFloat(e.target.value) || 100)} />
                   </div>
                   <div className="tp-sub-field" style={{ flexWrap: 'wrap', gap: 4 }}>
-                    <label>Max stake</label>
-                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daMaxStake || ''} min="0" max="100000" step="10" placeholder="Off" onChange={e => persistDaMax(parseFloat(e.target.value) || 0)} />
-                    <label>Max contracts</label>
-                    <input type="number" className="tp-sub-input" style={{ width: 44 }} value={daMaxContracts || ''} min="0" max="100" step="1" placeholder="Off" onChange={e => persistDaMaxC(parseInt(e.target.value) || 0)} />
-                    <button onClick={daReset} style={{ padding: '4px 10px', borderRadius: 5, background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, marginLeft: 'auto' }}>Reset</button>
+                    <label>{t('trade.maxStake')}</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daMaxStake || ''} min="0" max="100000" step="10" placeholder={t('common.offValue')} onChange={e => persistDaMax(parseFloat(e.target.value) || 0)} />
+                    <label>{t('trade.maxContracts')}</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 44 }} value={daMaxContracts || ''} min="0" max="100" step="1" placeholder={t('common.offValue')} onChange={e => persistDaMaxC(parseInt(e.target.value) || 0)} />
+                    <button onClick={daReset} style={{ padding: '4px 10px', borderRadius: 5, background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, marginLeft: 'auto' }}>{t('common.reset')}</button>
                   </div>
                   <div className="tp-sub-hint">
                     {daIsAuto
-                      ? `Stake: $${(daCurrentStake || daInitialStake).toFixed(2)} · ${daStepCount} trades · P&L: ${daCumulativePnl >= 0 ? '+' : ''}$${daCumulativePnl.toFixed(2)}`
-                      : `Unit: $${daUnit.toFixed(2)} · Init: $${daInitialStake.toFixed(2)} · Stake: $${(daCurrentStake || daInitialStake).toFixed(2)}`}
+                      ? `${t('trade.stake')}: $${(daCurrentStake || daInitialStake).toFixed(2)} · ${daStepCount} ${t('common.trades')} · ${t('common.pnl')}: ${daCumulativePnl >= 0 ? '+' : ''}$${daCumulativePnl.toFixed(2)}`
+                      : `${t('trade.unit')}: $${daUnit.toFixed(2)} · ${t('trade.init')}: $${daInitialStake.toFixed(2)} · ${t('trade.stake')}: $${(daCurrentStake || daInitialStake).toFixed(2)}`}
                   </div>
                 </div>
               )}
@@ -835,27 +838,27 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             {/* ── Compounding (Profit Reinvestment) ── */}
             <div className={`tp-sub ${cpEnabled ? 'active' : ''}`}>
               <div className="tp-sub-hdr" onClick={() => persistCp(!cpEnabled)}>
-                <span className="tp-sub-hdr-label">Compounding</span>
+                <span className="tp-sub-hdr-label">{t('trade.compounding')}</span>
                 <button className={`tp-sub-badge ${cpEnabled ? 'on-success' : 'off'}`}
                   onClick={e => { e.stopPropagation(); persistCp(!cpEnabled) }}>
-                  {cpEnabled ? 'ON' : 'OFF'}
+                  {cpEnabled ? t('common.on') : t('common.off')}
                 </button>
                 {showAdvanced ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
               </div>
               {cpEnabled && (
                 <div className="tp-sub-body">
                   <div className="tp-sub-seg">
-                    <button className={cpIsAuto ? 'on' : ''} onClick={() => persistCpAuto(true)}>Auto</button>
-                    <button className={!cpIsAuto ? 'on' : ''} onClick={() => persistCpAuto(false)}>Manual</button>
+                    <button className={cpIsAuto ? 'on' : ''} onClick={() => persistCpAuto(true)}>{t('common.auto')}</button>
+                    <button className={!cpIsAuto ? 'on' : ''} onClick={() => persistCpAuto(false)}>{t('common.manual')}</button>
                   </div>
                   {cpIsAuto ? (
                     <div className="tp-sub-field">
                       <label>+</label>
                       <input type="number" className="tp-sub-input" style={{ width: 56 }} value={cpCompoundPct} min="5" max="200" step="5" onChange={e => persistCpPct(parseInt(e.target.value) || 50)} />
-                      <label>% profit</label>
-                      <label>Max</label>
+                      <label>{t('common.percent')} {t('trade.ofProfit')}</label>
+                      <label>{t('common.max')}</label>
                       <input type="number" className="tp-sub-input" style={{ width: 44 }} value={cpMaxSteps} min="1" max="20" onChange={e => persistCpMaxSteps(parseInt(e.target.value) || 5)} />
-                      <label>steps</label>
+                      <label>{t('common.steps')}</label>
                     </div>
                   ) : (
                     <>
@@ -872,15 +875,15 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                         {cpSteps.length < 12 && <button onClick={() => { persistCpSteps([...cpSteps, (cpSteps[cpSteps.length - 1] || 10) * 2]); persistCpStepsOn([...cpStepsOn, true]) }} style={{ padding: '3px 8px', borderRadius: 5, background: 'var(--pit-surface-input)', border: '1px dashed var(--pit-border)', color: 'var(--pit-text-muted)', cursor: 'pointer', fontSize: 11 }}><Plus size={12} /></button>}
                       </div>
                       <div className="tp-sub-actions">
-                        <button onClick={cpAdvance}>Add after win</button>
-                        <button onClick={cpReset}>Reset</button>
+                        <button onClick={cpAdvance}>{t('trade.addAfterWin')}</button>
+                        <button onClick={cpReset}>{t('common.reset')}</button>
                       </div>
                     </>
                   )}
                   <div className="tp-sub-hint">
-                    {cpStepIndex === -1 ? `Base: $${baseAmount || 100} · waiting for win`
-                      : cpIsAuto ? `Win ${cpStepIndex + 1}/${cpMaxSteps} · Reinvesting ${cpCompoundPct}% of profit`
-                      : `Win ${cpStepIndex + 1}/${cpSteps.length} · Adding $${cpSteps[cpStepIndex]} to stake`}
+                    {cpStepIndex === -1 ? `${t('trade.baseAmount')}: $${baseAmount || 100} · ${t('trade.waitingForWin')}`
+                      : cpIsAuto ? `${t('common.win')} ${cpStepIndex + 1}/${cpMaxSteps} · ${t('trade.reinvesting')} ${cpCompoundPct}${t('common.percent')} ${t('trade.ofProfit')}`
+                      : `${t('common.win')} ${cpStepIndex + 1}/${cpSteps.length} · ${t('trade.addingToStake')} $${cpSteps[cpStepIndex]} ${t('trade.toStake')}`}
                   </div>
                 </div>
               )}
@@ -892,9 +895,9 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* ── Risk Management ── */}
       <div className={`tp-sub ${showRisk ? 'active' : ''}`} style={{ margin: '6px 10px' }}>
         <div className="tp-sub-hdr" onClick={() => setShowRisk(prev => !prev)}>
-          <span className="tp-sub-hdr-label">Risk Management</span>
+          <span className="tp-sub-hdr-label">{t('trade.riskManagement')}</span>
           <button className={`tp-sub-badge ${dailyLossLimit > 0 || maxPositionPct > 0 || maxDailyTrades > 0 ? 'on-danger' : 'off'}`}>
-            {dailyLossLimit > 0 || maxPositionPct > 0 || maxDailyTrades > 0 ? 'ON' : 'OFF'}
+            {dailyLossLimit > 0 || maxPositionPct > 0 || maxDailyTrades > 0 ? t('common.on') : t('common.off')}
           </button>
           {showRisk ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
         </div>
@@ -903,7 +906,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
           <div className="tp-sub-body">
             {/* Status row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-              <span>Today: {dailyTradeCount} trades</span>
+              <span>{t('common.today')}: {dailyTradeCount} {t('common.trades')}</span>
               <span style={{ color: dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                 {dailyPnl >= 0 ? '+' : ''}${dailyPnl.toFixed(2)}
               </span>
@@ -911,55 +914,55 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
 
             {/* Daily loss limit */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Daily loss limit</span>
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('trade.dailyLossLimit')}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>$</span>
                 <input type="number" value={dailyLossLimit} min="0" step="100" onChange={e => onSetDailyLossLimit?.(parseInt(e.target.value) || 0)}
                   style={{ width: 60, padding: '4px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     background: 'var(--bg-input)', border: dailyLossLimit > 0 ? '1px solid var(--danger)' : '1px solid var(--border-default)',
                     color: dailyLossLimit > 0 ? 'var(--danger)' : 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{dailyLossLimit === 0 ? 'off' : 'on'}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{dailyLossLimit === 0 ? t('common.offValue') : t('common.on')}</span>
               </div>
             </div>
 
             {/* Max position % of balance */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Max position %</span>
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('trade.maxPositionPercent')}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <input type="number" value={maxPositionPct} min="0" max="100" step="5" onChange={e => onSetMaxPositionPct?.(parseInt(e.target.value) || 0)}
                   style={{ width: 50, padding: '4px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     background: 'var(--bg-input)', border: maxPositionPct > 0 ? '1px solid var(--brand)' : '1px solid var(--border-default)',
                     color: maxPositionPct > 0 ? 'var(--brand)' : 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>%</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('common.percent')}</span>
                 {maxPositionPct > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· max ${(balance * maxPositionPct / 100).toFixed(0)}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· {t('trade.maxDollar')}{(balance * maxPositionPct / 100).toFixed(0)}</span>
                 )}
               </div>
             </div>
 
             {/* Max daily trades */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Max daily trades</span>
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('trade.maxDailyTrades')}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <input type="number" value={maxDailyTrades} min="0" max="500" step="5" onChange={e => onSetMaxDailyTrades?.(parseInt(e.target.value) || 0)}
                   style={{ width: 50, padding: '4px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     background: 'var(--bg-input)', border: maxDailyTrades > 0 ? '1px solid var(--brand)' : '1px solid var(--border-default)',
                     color: maxDailyTrades > 0 ? 'var(--brand)' : 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{maxDailyTrades === 0 ? 'off' : `/${maxDailyTrades}`}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{maxDailyTrades === 0 ? t('common.offValue') : `/${maxDailyTrades}`}</span>
               </div>
             </div>
 
             {/* Min payout % */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>Min payout %</span>
+              <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('trade.minPayoutPercent')}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 <input type="number" value={minPayoutPct} min="0" max="100" step="1" onChange={e => onSetMinPayoutPct?.(parseInt(e.target.value) || 0)}
                   style={{ width: 50, padding: '4px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                     background: 'var(--bg-input)', border: minPayoutPct > 0 ? '1px solid var(--success)' : '1px solid var(--border-default)',
                     color: minPayoutPct > 0 ? 'var(--success)' : 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>%</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('common.percent')}</span>
                 {minPayoutPct > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· reject below</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· {t('trade.rejectBelow')}</span>
                 )}
               </div>
             </div>
@@ -967,39 +970,39 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             {/* News event blocker */}
             <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>News event blocker</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('trade.newsBlocker')}</span>
                 <button onClick={() => onSetNewsBlockEnabled?.(!newsBlockEnabled)} style={{
                   padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                   background: newsBlockEnabled ? 'var(--danger)' : 'var(--bg-input)',
                   border: '1px solid var(--border-default)',
                   color: newsBlockEnabled ? '#fff' : 'var(--text-muted)',
                   cursor: 'pointer',
-                }}>{newsBlockEnabled ? 'ON' : 'OFF'}</button>
+                }}>{newsBlockEnabled ? t('common.on') : t('common.off')}</button>
               </div>
               {newsBlockEnabled && (
                 <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
                   {[
-                    { key: 'high', label: 'High', color: 'var(--danger)' },
-                    { key: 'medium', label: 'Med', color: '#ffc107' },
-                    { key: 'low', label: 'Low', color: 'var(--text-muted)' },
-                  ].map(({ key, label, color }) => (
+                    { key: 'high', labelKey: 'trade.newsHigh', color: 'var(--danger)' },
+                    { key: 'medium', labelKey: 'trade.newsMed', color: '#ffc107' },
+                    { key: 'low', labelKey: 'trade.newsLow', color: 'var(--text-muted)' },
+                  ].map(({ key, labelKey, color }) => (
                     <button key={key} onClick={() => onSetNewsBlockLevels?.({ ...newsBlockLevels, [key]: !newsBlockLevels[key] })} style={{
                       flex: 1, padding: '3px 0', borderRadius: 4, fontSize: 11, fontWeight: 600,
                       background: newsBlockLevels[key] ? color : 'var(--bg-input)',
                       border: newsBlockLevels[key] ? `1px solid ${color}` : '1px solid var(--border-default)',
                       color: newsBlockLevels[key] ? '#000' : 'var(--text-muted)',
                       cursor: 'pointer',
-                    }}>{label}</button>
+                    }}>{t(labelKey)}</button>
                   ))}
                 </div>
               )}
               <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 3, textAlign: 'center' }}>
-                Blocks trades during active economic events · calendar integration pending
+                {t('trade.newsBlockerHint')}
               </div>
             </div>
 
             <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-              Set to 0 to disable · resets daily
+              {t('trade.dailyLimitHint')}
             </div>
           </div>
         )}
@@ -1008,9 +1011,9 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       {/* ── Entry Orders ── */}
       <div className={`tp-sub ${showEntryOrder ? 'active' : ''}`} style={{ margin: '6px 10px' }}>
         <div className="tp-sub-hdr" onClick={() => setShowEntryOrder(prev => !prev)}>
-          <span className="tp-sub-hdr-label">Entry Orders</span>
+          <span className="tp-sub-hdr-label">{t('trade.entryOrders')}</span>
           {pendingOrders.length > 0 && (
-            <span className="tp-sub-badge on-success" style={{ fontSize: 11 }}>{pendingOrders.length} active</span>
+            <span className="tp-sub-badge on-success" style={{ fontSize: 11 }}>{pendingOrders.length} {t('trade.activeOrders')}</span>
           )}
           {showEntryOrder ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
         </div>
@@ -1025,7 +1028,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
               color: showOrderForm ? 'var(--brand)' : 'var(--text-secondary)',
               cursor: 'pointer', textAlign: 'center',
             }}>
-              {showOrderForm ? 'Cancel' : '+ New Entry Order'}
+              {showOrderForm ? t('common.cancel') : t('trade.newEntryOrder')}
             </button>
 
             {/* Order form */}
@@ -1039,24 +1042,24 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                     border: orderDirection === 'call' ? '1px solid var(--success)' : '1px solid var(--border-default)',
                     color: orderDirection === 'call' ? '#000' : 'var(--text-secondary)',
                     cursor: 'pointer',
-                  }}>CALL</button>
+                  }}>{t('common.call')}</button>
                   <button onClick={() => setOrderDirection('put')} style={{
                     flex: 1, padding: '6px 0', borderRadius: 5, fontSize: 11, fontWeight: 700,
                     background: orderDirection === 'put' ? 'var(--danger)' : 'var(--bg-input)',
                     border: orderDirection === 'put' ? '1px solid var(--danger)' : '1px solid var(--border-default)',
                     color: orderDirection === 'put' ? '#fff' : 'var(--text-secondary)',
                     cursor: 'pointer',
-                  }}>PUT</button>
+                  }}>{t('common.put')}</button>
                 </div>
 
                 {/* Entry price */}
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 2 }}>
-                    Entry Price · Current: {currentAsset?.price?.toFixed(5) || '—'}
+                    {t('trade.entryPrice')} · {t('trade.currentPrice')}: {currentAsset?.price?.toFixed(5) || '—'}
                   </div>
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <input type="number" value={orderEntryPrice} onChange={e => setOrderEntryPrice(e.target.value)}
-                      placeholder="Trigger price"
+                      placeholder={t('trade.triggerPrice')}
                       style={{
                         flex: 1, padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
                         background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -1079,14 +1082,14 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                 {/* Amount + Duration */}
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Amount</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('common.amount')}</div>
                     <input type="number" value={orderAmount} onChange={e => setOrderAmount(e.target.value)} min="1"
                       style={{ width: '100%', padding: '6px 6px', borderRadius: 5, fontSize: 12, fontWeight: 600,
                         background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                         color: 'var(--text-primary)', outline: 'none', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>Duration (s)</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('common.duration')} (s)</div>
                     <input type="number" value={orderDuration} onChange={e => setOrderDuration(parseInt(e.target.value) || 60)} min="30"
                       style={{ width: '100%', padding: '6px 6px', borderRadius: 5, fontSize: 12, fontWeight: 600,
                         background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -1097,15 +1100,15 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                 {/* Optional TP/SL */}
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>TP (optional)</div>
-                    <input type="number" value={orderTP} onChange={e => setOrderTP(e.target.value)} placeholder="Take profit"
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('common.tp')} ({t('common.optional')})</div>
+                    <input type="number" value={orderTP} onChange={e => setOrderTP(e.target.value)} placeholder={t('trade.takeProfit')}
                       style={{ width: '100%', padding: '5px 6px', borderRadius: 5, fontSize: 11, fontWeight: 600,
                         background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                         color: 'var(--success)', outline: 'none', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>SL (optional)</div>
-                    <input type="number" value={orderSL} onChange={e => setOrderSL(e.target.value)} placeholder="Stop loss"
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{t('common.sl')} ({t('common.optional')})</div>
+                    <input type="number" value={orderSL} onChange={e => setOrderSL(e.target.value)} placeholder={t('trade.stopLoss')}
                       style={{ width: '100%', padding: '5px 6px', borderRadius: 5, fontSize: 11, fontWeight: 600,
                         background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                         color: 'var(--danger)', outline: 'none', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }} />
@@ -1138,7 +1141,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                   cursor: (!orderEntryPrice || parseFloat(orderAmount) <= 0) ? 'not-allowed' : 'pointer',
                   opacity: (!orderEntryPrice || parseFloat(orderAmount) <= 0) ? 0.5 : 1,
                 }}>
-                  Place {orderDirection.toUpperCase()} Order @ {orderEntryPrice ? parseFloat(orderEntryPrice).toFixed(5) : '…'}
+                  {t('trade.placeOrder')} {orderDirection.toUpperCase()} {t('trade.orderAt')} {orderEntryPrice ? parseFloat(orderEntryPrice).toFixed(5) : '…'}
                 </button>
               </div>
             )}
@@ -1175,7 +1178,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
 
             {/* Hint */}
             {pendingOrders.length === 0 && !showOrderForm && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>No pending orders</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>{t('trade.noPendingOrders')}</div>
             )}
           </div>
         )}
@@ -1196,7 +1199,7 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             }}
           >
             <ChevronUp size={20} strokeWidth={2.5} />
-            {confirming === 'call' ? 'Confirm' : 'CALL'}
+            {confirming === 'call' ? t('common.confirm') : t('common.call')}
             {!confirmTrades && <CornerDownLeft size={12} style={{ opacity: 0.5 }} />}
           </button>
           <button
@@ -1211,20 +1214,20 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
             }}
           >
             <ChevronDown size={20} strokeWidth={2.5} />
-            {confirming === 'put' ? 'Confirm' : 'PUT'}
+            {confirming === 'put' ? t('common.confirm') : t('common.put')}
             {!confirmTrades && <CornerDownLeft size={12} style={{ opacity: 0.5 }} />}
           </button>
         </div>
         {confirmTrades && (
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 6 }}>
-            {confirming ? 'Click again to confirm or press Esc' : 'Confirmation required — click to arm'}
+            {confirming ? t('trade.clickAgain') : t('trade.confirmRequired')}
           </div>
         )}
       </div>
 
       {/* Open Positions */}
       <div className="positions-panel" style={{ padding: '0 10px', marginTop: 12 }}>
-        <div className="tp-section-header" style={{ paddingLeft: 0 }}>Open positions<span style={{ marginLeft: 'auto', fontWeight: 400, color: 'var(--text-muted)' }}>{openPositions.length}</span></div>
+        <div className="tp-section-header" style={{ paddingLeft: 0 }}>{t('trade.openPositions')}<span style={{ marginLeft: 'auto', fontWeight: 400, color: 'var(--text-muted)' }}>{openPositions.length}</span></div>
 
         {openPositions.map(pos => (
           <PositionCard
@@ -1241,14 +1244,14 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
         ))}
 
         {openPositions.length === 0 && (
-          <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>No open positions</div>
+          <div style={{ padding: 16, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>{t('trade.noOpenPositions')}</div>
         )}
 
         {/* Closed results */}
         {closedPositions.length > 0 && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '10px 0 6px' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Recent results</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{t('trade.recentResults')}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{closedPositions.length}</span>
             </div>
             {closedPositions.slice(0, 10).map(pos => (
@@ -1282,21 +1285,21 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                     fontSize: 11, display: 'flex', flexDirection: 'column', gap: 3,
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Entry</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('common.entry')}</span>
                       <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pos.entryPrice?.toFixed(5) || '—'}</span>
                     </div>
                     {pos.exitPrice && (
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Exit</span>
+                        <span style={{ color: 'var(--text-muted)' }}>{t('common.exit')}</span>
                         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{pos.exitPrice.toFixed(5)}</span>
                       </div>
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Duration</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{t('common.duration')}</span>
                       <span>{pos.duration}s</span>
                     </div>
                     <input type="text" value={pos.note || ''} onChange={e => onSetPositionNote?.(pos.id, e.target.value)}
-                      placeholder="Add note…" onClick={e => e.stopPropagation()}
+                      placeholder={t('trade.addNote')} onClick={e => e.stopPropagation()}
                       style={{
                         width: '100%', padding: '3px 6px', borderRadius: 4, fontSize: 11,
                         background: 'var(--bg-input)', border: pos.note ? '1px solid var(--brand)' : '1px solid var(--border-default)',
@@ -1315,29 +1318,29 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       <div className="account-bar">
         <div>
           <div className="account-label" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            Balance
+            {t('common.balance')}
             {onResetAccount && (
               <button
                 onClick={() => setShowResetModal(true)}
-                title="Reset demo account"
+                title={t('trade.resetAccount')}
                 style={{
                   background: 'none', border: '1px solid var(--border-default)', borderRadius: 3,
                   color: 'var(--text-muted)', cursor: 'pointer', fontSize: 8, fontWeight: 700,
                   padding: '1px 4px', opacity: 0.5,
                 }}
-              >RESET</button>
+              >{t('trade.resetButton')}</button>
             )}
           </div>
           <div className="account-balance">${balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <div className="account-label">Today</div>
+          <div className="account-label">{t('common.today')}</div>
           <div className="account-balance" style={{ color: dailyPnl >= 0 ? 'var(--success)' : 'var(--danger)', fontSize: 13 }}>
             {dailyPnl >= 0 ? '+' : ''}${dailyPnl.toFixed(2)}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div className="account-label">Total P&L</div>
+          <div className="account-label">{t('trade.totalPnL')}</div>
           <div className="account-balance" style={{ color: balance >= 10000 ? 'var(--success)' : 'var(--danger)' }}>
             {balance >= 10000 ? '+' : ''}${(balance - 10000).toFixed(2)}
           </div>
@@ -1346,9 +1349,9 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
 
       <ConfirmModal
         open={showResetModal}
-        title="Reset demo account?"
-        message="This closes all open positions and resets your balance to $10,000. Trade history is preserved."
-        confirmLabel="Reset"
+        title={t('trade.resetConfirmTitle')}
+        message={t('trade.resetConfirmMsg')}
+        confirmLabel={t('trade.resetButton')}
         danger
         onConfirm={() => { onResetAccount(); setShowResetModal(false) }}
         onCancel={() => setShowResetModal(false)}

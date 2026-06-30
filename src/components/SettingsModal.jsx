@@ -1,14 +1,10 @@
 import { useState } from 'react'
-import { X, TrendingUp, CandlestickChart, BarChart3, AreaChart, Plus } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { X, TrendingUp, CandlestickChart, BarChart3, AreaChart, Plus, Globe } from 'lucide-react'
 import { TIMEFRAMES, TF_MAP } from '../data/mockData'
+import { setLanguage, getLanguage, LANGUAGES } from '../i18n'
 
-const TABS = [
-  { id: 'chart', label: 'Chart' },
-  { id: 'overlays', label: 'Overlays' },
-  { id: 'alerts', label: 'Alerts' },
-]
-
-function ToggleBtn({ label, on, onClick, color, style }) {
+function ToggleBtn({ label, on, onClick, color, style, t }) {
   return (
     <button onClick={onClick} style={{
       width: '100%', padding: '7px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
@@ -19,7 +15,7 @@ function ToggleBtn({ label, on, onClick, color, style }) {
       ...style,
     }}>
       <span>{label}</span>
-      <span style={{ fontSize: 11, opacity: 0.7 }}>{on ? 'ON' : 'OFF'}</span>
+      <span style={{ fontSize: 11, opacity: 0.7 }}>{on ? t('common.on') : t('common.off')}</span>
     </button>
   )
 }
@@ -46,7 +42,14 @@ export default function SettingsModal({
   // Misc
   assetColor, onClose,
 }) {
+  const { t } = useTranslation()
   const [tab, setTab] = useState('chart')
+
+  const TABS = [
+    { id: 'chart', label: t('settings.tabChart') },
+    { id: 'overlays', label: t('settings.tabOverlays') },
+    { id: 'alerts', label: t('settings.tabAlerts') },
+  ]
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{
@@ -61,7 +64,7 @@ export default function SettingsModal({
       }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexShrink: 0 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Chart Settings</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{t('settings.title')}</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
             <X size={18} />
           </button>
@@ -69,14 +72,14 @@ export default function SettingsModal({
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 2, marginBottom: 14, flexShrink: 0 }}>
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
+          {TABS.map(tabItem => (
+            <button key={tabItem.id} onClick={() => setTab(tabItem.id)} style={{
               flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              background: tab === t.id ? 'var(--bg-elevated)' : 'transparent',
-              border: tab === t.id ? '1px solid var(--border-default)' : '1px solid transparent',
-              color: tab === t.id ? 'var(--text-primary)' : 'var(--text-muted)',
+              background: tab === tabItem.id ? 'var(--bg-elevated)' : 'transparent',
+              border: tab === tabItem.id ? '1px solid var(--border-default)' : '1px solid transparent',
+              color: tab === tabItem.id ? 'var(--text-primary)' : 'var(--text-muted)',
               transition: 'all 0.15s',
-            }}>{t.label}</button>
+            }}>{tabItem.label}</button>
           ))}
         </div>
 
@@ -86,13 +89,13 @@ export default function SettingsModal({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Chart Type */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Type</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('settings.chartType')}</div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {[
-                    { type: 'area', icon: <TrendingUp size={16} />, label: 'Area' },
-                    { type: 'area-split', icon: <AreaChart size={16} />, label: 'Area Split' },
-                    { type: 'candlestick', icon: <CandlestickChart size={16} />, label: 'Candles' },
-                    { type: 'bar', icon: <BarChart3 size={16} />, label: 'Bar' },
+                    { type: 'area', icon: <TrendingUp size={16} />, label: t('settings.area') },
+                    { type: 'area-split', icon: <AreaChart size={16} />, label: t('settings.areaSplit') },
+                    { type: 'candlestick', icon: <CandlestickChart size={16} />, label: t('settings.candles') },
+                    { type: 'bar', icon: <BarChart3 size={16} />, label: t('settings.bar') },
                   ].map(opt => (
                     <button key={opt.type} onClick={() => setChartType(opt.type)} style={{
                       flex: 1, padding: '10px 6px', borderRadius: 8,
@@ -108,7 +111,7 @@ export default function SettingsModal({
 
               {/* Timeframe */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Timeframe</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('settings.timeframe')}</div>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {TIMEFRAMES.map(tf => (
                     <button key={tf.value} onClick={() => onTimeframeChange(tf.value)} style={{
@@ -123,13 +126,13 @@ export default function SettingsModal({
 
               {/* Drawing Tools */}
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Drawing Tools</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('settings.drawingTools')}</div>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[
-                    { mode: 'off', label: 'Cursor', key: 'Esc' },
-                    { mode: 'horizontal', label: 'H Line', key: 'H' },
-                    { mode: 'trendline', label: 'Trend', key: 'T' },
-                    { mode: 'fibonacci', label: 'Fib', key: 'F' },
+                    { mode: 'off', label: t('settings.cursor'), key: 'Esc' },
+                    { mode: 'horizontal', label: t('settings.hLine'), key: 'H' },
+                    { mode: 'trendline', label: t('settings.trend'), key: 'T' },
+                    { mode: 'fibonacci', label: t('settings.fib'), key: 'F' },
                   ].map(({ mode, label, key }) => (
                     <button key={mode} onClick={() => { setDrawingMode(mode); window.dispatchEvent(new CustomEvent('pit-clear-anchor')) }} style={{
                       flex: 1, padding: '7px 4px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer',
@@ -146,31 +149,31 @@ export default function SettingsModal({
 
           {tab === 'overlays' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <ToggleBtn label="EMA (9) + Bollinger (20,2)" on={showIndicators} onClick={() => setShowIndicators(prev => !prev)} color="rgba(59,130,246,0.12)" />
+              <ToggleBtn label={t('settings.emaBB')} on={showIndicators} onClick={() => setShowIndicators(prev => !prev)} color="rgba(59,130,246,0.12)" t={t} />
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ToggleBtn label="SMA" on={showSMA} onClick={() => setShowSMA(prev => !prev)} color="rgba(250,204,21,0.12)" style={{ flex: 1 }} />
-                {showSMA && <input type="number" value={smaPeriod} min={2} max={200} onChange={e => setSmaPeriod(parseInt(e.target.value) || 20)} style={numStyle} title="Period" />}
+                <ToggleBtn label={t('settings.smaToggle')} on={showSMA} onClick={() => setShowSMA(prev => !prev)} color="rgba(250,204,21,0.12)" style={{ flex: 1 }} t={t} />
+                {showSMA && <input type="number" value={smaPeriod} min={2} max={200} onChange={e => setSmaPeriod(parseInt(e.target.value) || 20)} style={numStyle} title={t('settings.period')} />}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ToggleBtn label="RSI" on={showRSI} onClick={() => setShowRSI(prev => !prev)} color="rgba(239,68,68,0.10)" style={{ flex: 1 }} />
-                {showRSI && <input type="number" value={rsiPeriod} min={2} max={100} onChange={e => setRsiPeriod(parseInt(e.target.value) || 14)} style={numStyle} title="Period" />}
+                <ToggleBtn label={t('settings.rsiToggle')} on={showRSI} onClick={() => setShowRSI(prev => !prev)} color="rgba(239,68,68,0.10)" style={{ flex: 1 }} t={t} />
+                {showRSI && <input type="number" value={rsiPeriod} min={2} max={100} onChange={e => setRsiPeriod(parseInt(e.target.value) || 14)} style={numStyle} title={t('settings.period')} />}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <ToggleBtn label="MACD" on={showMACD} onClick={() => setShowMACD(prev => !prev)} color="rgba(168,85,247,0.10)" style={{ flex: 1 }} />
+                <ToggleBtn label={t('settings.macdToggle')} on={showMACD} onClick={() => setShowMACD(prev => !prev)} color="rgba(168,85,247,0.10)" style={{ flex: 1 }} t={t} />
                 {showMACD && <>
-                  <input type="number" value={macdFast} min={2} max={50} onChange={e => setMacdFast(parseInt(e.target.value) || 12)} style={{ ...numStyle, width: 28 }} title="Fast" />
-                  <input type="number" value={macdSlow} min={2} max={100} onChange={e => setMacdSlow(parseInt(e.target.value) || 26)} style={{ ...numStyle, width: 28 }} title="Slow" />
-                  <input type="number" value={macdSignal} min={2} max={50} onChange={e => setMacdSignal(parseInt(e.target.value) || 9)} style={{ ...numStyle, width: 28 }} title="Signal" />
+                  <input type="number" value={macdFast} min={2} max={50} onChange={e => setMacdFast(parseInt(e.target.value) || 12)} style={{ ...numStyle, width: 28 }} title={t('settings.fast')} />
+                  <input type="number" value={macdSlow} min={2} max={100} onChange={e => setMacdSlow(parseInt(e.target.value) || 26)} style={{ ...numStyle, width: 28 }} title={t('settings.slow')} />
+                  <input type="number" value={macdSignal} min={2} max={50} onChange={e => setMacdSignal(parseInt(e.target.value) || 9)} style={{ ...numStyle, width: 28 }} title={t('settings.signal')} />
                 </>}
               </div>
 
-              <ToggleBtn label="VWAP" on={showVWAP} onClick={() => setShowVWAP(prev => !prev)} color="rgba(255,193,7,0.10)" />
+              <ToggleBtn label={t('settings.vwapToggle')} on={showVWAP} onClick={() => setShowVWAP(prev => !prev)} color="rgba(255,193,7,0.10)" t={t} />
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ToggleBtn label={`MTF Overlay${showMTF ? ' ' + mtfTimeframe : ''}`} on={showMTF} onClick={() => setShowMTF(prev => !prev)} color="rgba(245,123,0,0.08)" style={{ flex: 1 }} />
+                <ToggleBtn label={`${t('settings.mtfOverlay')}${showMTF ? ' ' + mtfTimeframe : ''}`} on={showMTF} onClick={() => setShowMTF(prev => !prev)} color="rgba(245,123,0,0.08)" style={{ flex: 1 }} t={t} />
                 {showMTF && (
                   <select value={mtfTimeframe} onChange={e => setMtfTimeframe(e.target.value)} style={{
                     ...numStyle, width: 48, cursor: 'pointer', textAlign: 'center',
@@ -182,16 +185,16 @@ export default function SettingsModal({
                 )}
               </div>
 
-              <ToggleBtn label="Order Book (DOM)" on={showOrderBook} onClick={() => setShowOrderBook(prev => !prev)} color="rgba(41,121,255,0.08)" />
+              <ToggleBtn label={t('settings.orderBook')} on={showOrderBook} onClick={() => setShowOrderBook(prev => !prev)} color="rgba(41,121,255,0.08)" t={t} />
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <ToggleBtn label="Volume Profile" on={showVolumeProfile} onClick={() => setShowVolumeProfile(prev => !prev)} color="rgba(41,121,255,0.10)" style={{ flex: 1 }} />
-                {showVolumeProfile && <input type="number" value={vpBins} min={10} max={60} step={5} onChange={e => setVpBins(parseInt(e.target.value) || 30)} style={numStyle} title="Bins" />}
+                <ToggleBtn label={t('settings.volumeProfile')} on={showVolumeProfile} onClick={() => setShowVolumeProfile(prev => !prev)} color="rgba(41,121,255,0.10)" style={{ flex: 1 }} t={t} />
+                {showVolumeProfile && <input type="number" value={vpBins} min={10} max={60} step={5} onChange={e => setVpBins(parseInt(e.target.value) || 30)} style={numStyle} title={t('settings.bins')} />}
               </div>
 
               {/* Custom Indicators */}
               <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 8, marginTop: 4 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>Custom</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{t('settings.customIndicators')}</div>
                 {customIndicators.map((ci, idx) => (
                   <div key={idx} style={{
                     display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px', marginBottom: 2,
@@ -218,7 +221,7 @@ export default function SettingsModal({
                   width: '100%', padding: '4px 0', borderRadius: 5, fontSize: 11, fontWeight: 600,
                   background: 'var(--bg-input)', border: '1px dashed var(--border-default)',
                   color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                }}><Plus size={12} /> Add</button>
+                }}><Plus size={12} /> {t('settings.addIndicator')}</button>
               </div>
             </div>
           )}
@@ -228,7 +231,7 @@ export default function SettingsModal({
               {/* Price Alerts */}
               {onAddAlert && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Price Alerts</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('settings.priceAlerts')}</div>
                   {alerts.filter(a => a.asset === selectedAsset).map(a => (
                     <div key={a.id} style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -246,8 +249,8 @@ export default function SettingsModal({
                     const p = asset.price
                     return (
                       <div style={{ display: 'flex', gap: 4 }}>
-                        <button onClick={() => onAddAlert(selectedAsset, parseFloat((p * 1.002).toFixed(5)), 'above')} style={alertBtnStyle('var(--success)')}>Above {(p * 1.002).toFixed(5)}</button>
-                        <button onClick={() => onAddAlert(selectedAsset, parseFloat((p * 0.998).toFixed(5)), 'below')} style={alertBtnStyle('var(--danger)')}>Below {(p * 0.998).toFixed(5)}</button>
+                        <button onClick={() => onAddAlert(selectedAsset, parseFloat((p * 1.002).toFixed(5)), 'above')} style={alertBtnStyle('var(--success)')}>{t('settings.above')} {(p * 1.002).toFixed(5)}</button>
+                        <button onClick={() => onAddAlert(selectedAsset, parseFloat((p * 0.998).toFixed(5)), 'below')} style={alertBtnStyle('var(--danger)')}>{t('settings.below')} {(p * 0.998).toFixed(5)}</button>
                       </div>
                     )
                   })()}
@@ -257,9 +260,9 @@ export default function SettingsModal({
               {/* Toast duration */}
               {onToastDurationChange && (
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Toast Duration</div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{t('settings.toastDuration')}</div>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    {[{ l: '3s', v: 3000 }, { l: '5s', v: 5000 }, { l: '10s', v: 10000 }, { l: 'Stay', v: 0 }].map(o => (
+                    {[{ l: t('settings.duration3s'), v: 3000 }, { l: t('settings.duration5s'), v: 5000 }, { l: t('settings.duration10s'), v: 10000 }, { l: t('settings.stay'), v: 0 }].map(o => (
                       <button key={o.v} onClick={() => onToastDurationChange(o.v)} style={{
                         flex: 1, padding: '6px 2px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
                         background: toastDuration === o.v ? 'var(--brand)' : 'var(--bg-input)',
@@ -273,17 +276,41 @@ export default function SettingsModal({
 
               {/* Trade Safety */}
               {onToggleConfirmTrades && (
-                <ToggleBtn label="Require trade confirmation" on={confirmTrades} onClick={onToggleConfirmTrades} />
+                <ToggleBtn label={t('settings.confirmToggle')} on={confirmTrades} onClick={onToggleConfirmTrades} t={t} />
               )}
 
               {/* Push */}
               {onTogglePush && (
                 <ToggleBtn
-                  label={`Push Notifications${pushPermission === 'denied' ? ' (blocked)' : ''}`}
+                  label={`${t('settings.pushNotifications')}${pushPermission === 'denied' ? t('settings.pushBlocked') : ''}`}
                   on={pushEnabled} onClick={onTogglePush}
                   color="rgba(245,123,0,0.10)"
+                  t={t}
                 />
               )}
+
+              {/* Language */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                  <Globe size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                  Language
+                </div>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {LANGUAGES.map(lang => (
+                    <button
+                      key={lang.code}
+                      onClick={() => setLanguage(lang.code)}
+                      style={{
+                        flex: 1, padding: '6px 8px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                        background: getLanguage() === lang.code ? 'var(--brand)' : 'var(--bg-input)',
+                        color: getLanguage() === lang.code ? '#fff' : 'var(--text-secondary)',
+                        border: getLanguage() === lang.code ? '1px solid var(--brand)' : '1px solid var(--border-default)',
+                        cursor: 'pointer',
+                      }}
+                    >{lang.label}</button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

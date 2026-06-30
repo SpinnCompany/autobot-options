@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { CATEGORIES } from '../data/mockData'
 
 export default function AssetPanel({ assets, selectedAsset, onSelectAsset, tradeHistory = [], mobileOpen, onCloseMobile }) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState(() => { try { return localStorage.getItem('autobot_asset_search') || '' } catch { return '' } })
   const [category, setCategory] = useState(() => { try { return localStorage.getItem('autobot_asset_cat') || 'All' } catch { return 'All' } })
 
@@ -39,13 +41,13 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
   return (
     <aside className={`asset-panel ${mobileOpen ? 'mobile-open' : ''}`}>
       <div className="asset-panel-header">
-        <h2>Assets</h2>
+        <h2>{t('assets.title')}</h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            {filteredAssets.length} items
+            {filteredAssets.length}{t('assets.items')}
           </span>
           {onCloseMobile && (
-            <button onClick={onCloseMobile} className="mobile-close-btn" title="Close">
+            <button onClick={onCloseMobile} className="mobile-close-btn" title={t('common.close')}>
               <X size={16} />
             </button>
           )}
@@ -56,7 +58,7 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
         <Search size={14} />
         <input
           type="text"
-          placeholder="Search assets..."
+          placeholder={t('assets.searchPlaceholder')}
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -120,13 +122,13 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
                     <span style={{
                       fontSize: 11, fontWeight: 700, color: 'var(--brand)',
                       background: 'rgba(245,123,0,0.12)', padding: '0 4px', borderRadius: 3,
-                    }}>BIN</span>
+                    }}>{t('common.bin')}</span>
                   )}
                   {totalTrades > 0 && (
                     <span style={{
                       fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
                       background: 'var(--bg-input)', padding: '0 4px', borderRadius: 3,
-                    }}>{totalTrades}t</span>
+                    }}>{totalTrades}{t('assets.tradesCount')}</span>
                   )}
                 </div>
               </div>
@@ -144,21 +146,21 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
                       color: winRate >= 55 ? 'var(--success)' : winRate >= 45 ? 'var(--text-muted)' : 'var(--danger)',
                       background: winRate >= 55 ? 'rgba(0,200,83,0.1)' : winRate >= 45 ? 'rgba(139,143,168,0.1)' : 'rgba(255,23,68,0.1)',
                       padding: '0 4px', borderRadius: 3,
-                    }}>{winRate.toFixed(0)}%</span>
+                    }}>{winRate.toFixed(0)}{t('common.percent')}</span>
                   )}
                   <span className={`asset-item-change ${isUp ? 'up' : 'down'}`}>
-                    {isUp ? '+' : ''}{asset.change}%
+                    {isUp ? '+' : ''}{asset.change}{t('common.percent')}
                   </span>
                   <span style={{
                     fontSize: 11, fontWeight: 700, color: 'var(--success)',
                     background: 'rgba(0,200,83,0.1)', padding: '0 4px', borderRadius: 3,
-                  }}>{asset.payout}%</span>
+                  }}>{asset.payout}{t('common.percent')}</span>
                 </div>
                 {/* Spread + Daily Range bar */}
                 {asset.spread != null && asset.dayHigh != null && (
                   <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-                      Spread {asset.spread.toFixed(asset.spread < 1 ? 5 : 2)}
+                      {t('assets.spread')} {asset.spread.toFixed(asset.spread < 1 ? 5 : 2)}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.5 }}>·</span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
@@ -169,7 +171,7 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
                 {/* Market Sentiment bar */}
                 {callPct !== null && (
                   <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>Sentiment</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{t('assets.sentiment')}</span>
                     <div style={{
                       width: 40, height: 3, borderRadius: 2,
                       background: 'var(--bg-input)', overflow: 'hidden',
@@ -188,7 +190,7 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
                     <span style={{
                       fontSize: 11, fontWeight: 600,
                       color: callPct >= 55 ? 'var(--success)' : callPct <= 45 ? 'var(--danger)' : 'var(--text-muted)',
-                    }}>{callPct.toFixed(0)}% CALL</span>
+                    }}>{callPct.toFixed(0)}{t('common.percent')} {t('common.call')}</span>
                   </div>
                 )}
               </div>
@@ -197,7 +199,7 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
         })}
         {filteredAssets.length === 0 && (
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-            No assets found
+            {t('assets.noAssetsFound')}
           </div>
         )}
       </div>

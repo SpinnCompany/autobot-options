@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Play, RotateCcw } from 'lucide-react'
 import { generateCandleHistory } from '../data/mockData'
 import { runBacktest } from '../engine/BacktestEngine'
@@ -19,6 +20,7 @@ const STRATEGIES = [
 ]
 
 export default function BacktesterView({ assets }) {
+  const { t } = useTranslation()
   const prefs = useMemo(() => loadPrefs(), [])
 
   const [asset, setAsset] = useState(prefs.asset || 'EUR/USD')
@@ -75,11 +77,17 @@ export default function BacktesterView({ assets }) {
 
   const s = result?.summary
 
+  const strategyLabels = {
+    rsi: t('backtest.rsiOverbought'),
+    sma_cross: t('backtest.smaCrossover'),
+    macd_cross: t('backtest.macdSignalCross'),
+  }
+
   return (
     <div style={{ gridColumn: '2 / 5', padding: 20, overflow: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>Strategy Backtester</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>500 candles</span>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>{t('backtest.title')}</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('backtest.subtitle')}</span>
       </div>
 
       {/* Config form */}
@@ -90,7 +98,7 @@ export default function BacktesterView({ assets }) {
         border: '1px solid var(--border-subtle)',
       }}>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Asset</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{t('backtest.asset')}</div>
           <select value={asset} onChange={e => setAsset(e.target.value)} style={{
             width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
             background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -100,48 +108,48 @@ export default function BacktesterView({ assets }) {
           </select>
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Strategy</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{t('backtest.strategy')}</div>
           <select value={strategy} onChange={e => setStrategy(e.target.value)} style={{
             width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
             background: 'var(--bg-input)', border: '1px solid var(--border-default)',
             color: 'var(--text-primary)', outline: 'none', cursor: 'pointer',
           }}>
-            {STRATEGIES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {STRATEGIES.map(s => <option key={s.value} value={s.value}>{strategyLabels[s.value]}</option>)}
           </select>
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Direction</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{t('backtest.direction')}</div>
           <div style={{ display: 'flex', gap: 4 }}>
             <button onClick={() => setDirection('call')} style={{
               flex: 1, padding: '6px 0', borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer',
               background: direction === 'call' ? 'var(--success)' : 'var(--bg-input)',
               border: direction === 'call' ? '1px solid var(--success)' : '1px solid var(--border-default)',
               color: direction === 'call' ? '#000' : 'var(--text-secondary)',
-            }}>CALL</button>
+            }}>{t('common.call')}</button>
             <button onClick={() => setDirection('put')} style={{
               flex: 1, padding: '6px 0', borderRadius: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer',
               background: direction === 'put' ? 'var(--danger)' : 'var(--bg-input)',
               border: direction === 'put' ? '1px solid var(--danger)' : '1px solid var(--border-default)',
               color: direction === 'put' ? '#fff' : 'var(--text-secondary)',
-            }}>PUT</button>
+            }}>{t('common.put')}</button>
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Duration (candles)</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{t('backtest.durationCandles')}</div>
           <input type="number" value={duration} min={1} max={50} onChange={e => setDuration(parseInt(e.target.value) || 5)}
             style={{ width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
               background: 'var(--bg-input)', border: '1px solid var(--border-default)',
               color: 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Amount $</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{t('backtest.amountDollar')}</div>
           <input type="number" value={amount} min={1} onChange={e => setAmount(parseInt(e.target.value) || 100)}
             style={{ width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
               background: 'var(--bg-input)', border: '1px solid var(--border-default)',
               color: 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
         </div>
         <div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>Payout %</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3 }}>{t('backtest.payoutPercent')}</div>
           <input type="number" value={payout} min={50} max={100} onChange={e => setPayout(parseInt(e.target.value) || 82)}
             style={{ width: '100%', padding: '6px 8px', borderRadius: 5, fontSize: 12, fontWeight: 600,
               background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -162,13 +170,13 @@ export default function BacktesterView({ assets }) {
               style={{ width: 45, padding: '2px 4px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                 color: 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: 'var(--text-muted)' }}>period</span>
-            <span style={{ color: 'var(--success)' }}>Oversold</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('backtest.period')}</span>
+            <span style={{ color: 'var(--success)' }}>{t('backtest.oversold')}</span>
             <input type="number" value={rsiOversold} min={1} max={50} onChange={e => setRsiOversold(parseInt(e.target.value) || 30)}
               style={{ width: 45, padding: '2px 4px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                 color: 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: 'var(--danger)' }}>Overbought</span>
+            <span style={{ color: 'var(--danger)' }}>{t('backtest.overbought')}</span>
             <input type="number" value={rsiOverbought} min={50} max={99} onChange={e => setRsiOverbought(parseInt(e.target.value) || 70)}
               style={{ width: 45, padding: '2px 4px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -177,12 +185,12 @@ export default function BacktesterView({ assets }) {
         )}
         {strategy === 'sma_cross' && (
           <>
-            <span style={{ color: 'var(--text-muted)' }}>Fast SMA</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('backtest.fastSma')}</span>
             <input type="number" value={smaFast} min={2} max={50} onChange={e => setSmaFast(parseInt(e.target.value) || 9)}
               style={{ width: 45, padding: '2px 4px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                 color: 'var(--text-primary)', outline: 'none', textAlign: 'center' }} />
-            <span style={{ color: 'var(--text-muted)' }}>Slow SMA</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('backtest.slowSma')}</span>
             <input type="number" value={smaSlow} min={5} max={200} onChange={e => setSmaSlow(parseInt(e.target.value) || 21)}
               style={{ width: 45, padding: '2px 4px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -191,7 +199,7 @@ export default function BacktesterView({ assets }) {
         )}
         {strategy === 'macd_cross' && (
           <>
-            <span style={{ color: 'var(--text-muted)' }}>Fast/Slow/Signal</span>
+            <span style={{ color: 'var(--text-muted)' }}>{t('backtest.fastSlowSignal')}</span>
             <input type="number" value={macdFast} min={2} max={50} onChange={e => setMacdFast(parseInt(e.target.value) || 12)}
               style={{ width: 40, padding: '2px 4px', borderRadius: 4, fontSize: 11, fontWeight: 600,
                 background: 'var(--bg-input)', border: '1px solid var(--border-default)',
@@ -213,19 +221,19 @@ export default function BacktesterView({ assets }) {
         padding: '10px 24px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
         background: 'var(--brand)', border: 'none', color: '#000',
         display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20,
-      }}><Play size={16} /> Run Backtest</button>
+      }}><Play size={16} /> {t('backtest.runButton')}</button>
 
       {/* Results */}
       {result && result.summary && (
         <>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
             {[
-              ['Total Trades', s.totalTrades],
-              ['Win Rate', `${s.winRate}%`],
-              ['Total P&L', `${s.totalPnl >= 0 ? '+' : ''}$${s.totalPnl}`],
-              ['Avg P&L', `${s.avgPnl >= 0 ? '+' : ''}$${s.avgPnl}`],
-              ['Max DD', `-$${s.maxDrawdown}`],
-              ['Profit Factor', s.profitFactor.toFixed(2)],
+              [t('backtest.totalTrades'), s.totalTrades],
+              [t('backtest.winRate'), `${s.winRate}%`],
+              [t('backtest.totalPnL'), `${s.totalPnl >= 0 ? '+' : ''}$${s.totalPnl}`],
+              [t('backtest.avgPnL'), `${s.avgPnl >= 0 ? '+' : ''}$${s.avgPnl}`],
+              [t('backtest.maxDrawdown'), `-$${s.maxDrawdown}`],
+              [t('backtest.profitFactor'), s.profitFactor.toFixed(2)],
             ].map(([label, value]) => (
               <div key={label} style={{
                 flex: 1, minWidth: 100, padding: '10px 14px',
@@ -242,7 +250,7 @@ export default function BacktesterView({ assets }) {
 
           {/* Equity curve */}
           <div style={{ padding: 12, background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Equity Curve</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>{t('backtest.equityCurve')}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 120 }}>
               {s.equity.map((v, i) => {
                 const h = Math.max(2, Math.abs(v) / Math.max(Math.abs(s.totalPnl), 1) * 100)
@@ -259,8 +267,8 @@ export default function BacktesterView({ assets }) {
               })}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              <span>Trade 1</span>
-              <span>Trade {s.totalTrades}</span>
+              <span>{t('backtest.tradeLabel')} 1</span>
+              <span>{t('backtest.tradeLabel')} {s.totalTrades}</span>
             </div>
           </div>
         </>
@@ -268,7 +276,7 @@ export default function BacktesterView({ assets }) {
 
       {result && !result.summary && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, marginTop: 20 }}>
-          No trades generated — try adjusting parameters
+          {t('backtest.noTrades')}
         </div>
       )}
     </div>

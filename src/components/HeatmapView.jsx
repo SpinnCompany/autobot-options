@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 function heatColor(value, min, max) {
@@ -17,6 +18,8 @@ function heatColor(value, min, max) {
 }
 
 export default function HeatmapView({ assets, positions, storedHistory }) {
+  const { t } = useTranslation()
+
   // Merge all trade history per asset
   const assetMetrics = useMemo(() => {
     const all = [...positions.filter(p => p.status !== 'open'), ...storedHistory]
@@ -57,9 +60,9 @@ export default function HeatmapView({ assets, positions, storedHistory }) {
   return (
     <div style={{ gridColumn: '2 / 5', padding: 20, overflow: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>Heatmap</span>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>{t('heatmap.title')}</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {entries.length} assets · colored by P&amp;L
+          {entries.length} {t('heatmap.assets')} · {t('heatmap.subtitle')}
         </span>
       </div>
 
@@ -68,12 +71,12 @@ export default function HeatmapView({ assets, positions, storedHistory }) {
         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 11,
         color: 'var(--text-muted)',
       }}>
-        <span>Losing</span>
+        <span>{t('heatmap.losing')}</span>
         <div style={{
           width: 120, height: 8, borderRadius: 4,
           background: 'linear-gradient(90deg, rgba(255,23,68,0.30), rgba(10,11,15,1), rgba(0,200,83,0.30))',
         }} />
-        <span>Winning</span>
+        <span>{t('heatmap.winning')}</span>
       </div>
 
       {/* Grid */}
@@ -120,19 +123,19 @@ export default function HeatmapView({ assets, positions, storedHistory }) {
                   {m.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 600, color: changeColor, fontVariantNumeric: 'tabular-nums' }}>
-                  {change >= 0 ? '+' : ''}{m.change}%
+                  {change >= 0 ? '+' : ''}{m.change}{t('common.percent')}
                 </span>
               </div>
 
               {/* Stats row */}
               <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span>Payout {m.payout}%</span>
+                <span>{t('heatmap.payoutLabel')} {m.payout}{t('common.percent')}</span>
                 {m.trades > 0 && (
-                  <span>{m.trades}t</span>
+                  <span>{m.trades}{t('heatmap.tradesCount')}</span>
                 )}
                 {m.winRate !== null && (
                   <span style={{ color: m.winRate >= 55 ? 'var(--success)' : m.winRate >= 45 ? 'var(--text-muted)' : 'var(--danger)' }}>
-                    {m.winRate.toFixed(0)}%
+                    {m.winRate.toFixed(0)}{t('common.percent')}
                   </span>
                 )}
               </div>
@@ -141,7 +144,7 @@ export default function HeatmapView({ assets, positions, storedHistory }) {
               {m.pnl !== 0 && (
                 <div style={{ marginTop: 2 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-                    <span style={{ color: 'var(--text-muted)' }}>P&amp;L</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('heatmap.pnlLabel')}</span>
                     <span style={{ fontWeight: 700, color: pnlColor, fontVariantNumeric: 'tabular-nums' }}>
                       {m.pnl >= 0 ? '+' : ''}${m.pnl.toFixed(2)}
                     </span>
@@ -167,7 +170,7 @@ export default function HeatmapView({ assets, positions, storedHistory }) {
       {/* No trades yet hint */}
       {entries.every(m => m.trades === 0) && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginTop: 40 }}>
-          Place some trades to see asset performance heatmap
+          {t('heatmap.emptyHint')}
         </div>
       )}
     </div>

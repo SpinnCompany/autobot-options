@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Calendar, Clock, AlertTriangle, Info } from 'lucide-react'
 import { getUpcomingEvents, getCurrencyFlag, IMPACT_COLORS } from '../data/economicCalendar'
 
 function fmtCountdown(ms) {
-  if (ms <= 0) return 'LIVE'
+  if (ms <= 0) return ''
   const h = Math.floor(ms / 3600000)
   const m = Math.floor((ms % 3600000) / 60000)
   const s = Math.floor((ms % 60000) / 1000)
@@ -13,6 +14,7 @@ function fmtCountdown(ms) {
 }
 
 export default function EconomicCalendar() {
+  const { t } = useTranslation()
   const [filter, setFilter] = useState(() => { try { return localStorage.getItem('autobot_ecal_filter') || 'all' } catch { return 'all' } })
   const [now, setNow] = useState(Date.now())
 
@@ -43,45 +45,54 @@ export default function EconomicCalendar() {
 
   const activeCount = events.filter(ev => now >= ev.time && now <= ev.endTime).length
 
+  const filterLabels = {
+    all: t('calendar.filterAll'),
+    high: t('calendar.filterHigh'),
+    medium: t('calendar.filterMed'),
+    low: t('calendar.filterLow'),
+  }
+
+  const filterColors = {
+    all: null,
+    high: 'var(--danger)',
+    medium: '#ffc107',
+    low: 'var(--text-muted)',
+  }
+
   return (
     <div style={{ gridColumn: '2 / 5', padding: 20, overflow: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Calendar size={20} color="var(--brand)" />
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Economic Calendar</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{t('calendar.title')}</h2>
           {activeCount > 0 && (
             <span style={{
               fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
               background: 'rgba(255,23,68,0.15)', color: 'var(--danger)',
               animation: 'pulse-brand 1.5s ease-in-out infinite',
             }}>
-              {activeCount} LIVE NOW
+              {activeCount} {t('calendar.liveNow')}
             </span>
           )}
         </div>
 
         {/* Impact filter */}
         <div style={{ display: 'flex', gap: 4 }}>
-          {[
-            { key: 'all', label: 'All' },
-            { key: 'high', label: 'High', color: 'var(--danger)' },
-            { key: 'medium', label: 'Med', color: '#ffc107' },
-            { key: 'low', label: 'Low', color: 'var(--text-muted)' },
-          ].map(({ key, label, color }) => (
+          {['all', 'high', 'medium', 'low'].map(key => (
             <button key={key} onClick={() => setFilter(key)} style={{
               padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
-              background: filter === key ? (color || 'var(--bg-elevated)') : 'transparent',
-              border: filter === key ? `1px solid ${color || 'var(--border-default)'}` : '1px solid transparent',
+              background: filter === key ? (filterColors[key] || 'var(--bg-elevated)') : 'transparent',
+              border: filter === key ? `1px solid ${filterColors[key] || 'var(--border-default)'}` : '1px solid transparent',
               color: filter === key ? (key === 'all' ? 'var(--text-primary)' : '#000') : 'var(--text-muted)',
               cursor: 'pointer', transition: 'all 0.15s',
-            }}>{label}</button>
+            }}>{filterLabels[key]}</button>
           ))}
         </div>
       </div>
 
       {Object.keys(grouped).length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, marginTop: 40 }}>
-          No upcoming events
+          {t('calendar.noEvents')}
         </div>
       )}
 
@@ -118,7 +129,7 @@ export default function EconomicCalendar() {
                       fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
                       color: isActive ? 'var(--danger)' : 'var(--text-muted)',
                     }}>
-                      {isActive ? 'LIVE' : fmtCountdown(countdown)}
+                      {isActive ? t('calendar.live') : (countdown > 0 ? fmtCountdown(countdown) : t('calendar.live'))}
                     </div>
                   )}
                 </div>
@@ -148,10 +159,10 @@ export default function EconomicCalendar() {
                 {/* Previous / Forecast */}
                 <div style={{ textAlign: 'right', minWidth: 100 }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-                    Prev: <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{ev.previous}</span>
+                    {t('calendar.previous')}: <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{ev.previous}</span>
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>
-                    Fcast: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{ev.forecast}</span>
+                    {t('calendar.forecast')}: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{ev.forecast}</span>
                   </div>
                 </div>
               </div>
@@ -162,7 +173,7 @@ export default function EconomicCalendar() {
 
       <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
         <Info size={12} />
-        Demo data — real events via API in production
+        {t('calendar.disclaimer')}
       </div>
     </div>
   )

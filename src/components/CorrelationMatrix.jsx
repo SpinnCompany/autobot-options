@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { generatePriceHistory } from '../data/mockData'
 
 function pearson(a, b) {
@@ -32,6 +33,8 @@ function corrTextColor(v) {
 }
 
 export default function CorrelationMatrix({ assets }) {
+  const { t } = useTranslation()
+
   // Generate price histories and compute % change series for correlation
   const matrix = useMemo(() => {
     const forex = assets.filter(a => a.category === 'Forex')
@@ -65,15 +68,15 @@ export default function CorrelationMatrix({ assets }) {
   return (
     <div style={{ gridColumn: '2 / 5', padding: 20, overflow: 'auto', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>Correlation Matrix</span>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>{t('correlation.title')}</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {pairs.length} forex pairs · Pearson r
+          {pairs.length} {t('correlation.subtitle')}
         </span>
       </div>
 
       {/* Legend */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, fontSize: 11 }}>
-        <span style={{ color: 'var(--text-muted)' }}>-1.0</span>
+        <span style={{ color: 'var(--text-muted)' }}>{t('correlation.negOne')}</span>
         <div style={{ display: 'flex', height: 10, borderRadius: 3, overflow: 'hidden' }}>
           <div style={{ width: 30, background: 'rgba(255,23,68,0.40)' }} />
           <div style={{ width: 30, background: 'rgba(255,23,68,0.18)' }} />
@@ -81,12 +84,12 @@ export default function CorrelationMatrix({ assets }) {
           <div style={{ width: 30, background: 'rgba(0,200,83,0.18)' }} />
           <div style={{ width: 30, background: 'rgba(0,200,83,0.40)' }} />
         </div>
-        <span style={{ color: 'var(--text-muted)' }}>+1.0</span>
+        <span style={{ color: 'var(--text-muted)' }}>{t('correlation.posOne')}</span>
       </div>
 
       {pairs.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginTop: 40 }}>
-          No forex pairs available
+          {t('correlation.noPairs')}
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
@@ -136,8 +139,8 @@ export default function CorrelationMatrix({ assets }) {
         </div>
       )}
 
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 20 }}>
-        Based on synthetic price change correlations · hover over pairs for details
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        {t('correlation.footer')}
       </div>
     </div>
   )

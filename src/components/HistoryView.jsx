@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Search, Filter, ArrowUpDown, Download, BookOpen, ChevronRight } from 'lucide-react'
 import { updateHistoryNote } from '../data/mockData'
 
@@ -27,6 +28,7 @@ function exportCSV(trades) {
 }
 
 export default function HistoryView({ tradeHistory, storedHistory, onNavigateJournal }) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState(() => { try { return localStorage.getItem('autobot_hist_search') || '' } catch { return '' } })
   const [filter, setFilter] = useState(() => { try { return localStorage.getItem('autobot_hist_filter') || 'all' } catch { return 'all' } })
   const [sort, setSort] = useState(() => { try { return localStorage.getItem('autobot_hist_sort') || 'newest' } catch { return 'newest' } })
@@ -77,72 +79,72 @@ export default function HistoryView({ tradeHistory, storedHistory, onNavigateJou
     if (!ts) return '—'
     const now = Date.now()
     const diff = now - ts
-    if (diff < 60000) return 'Just now'
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+    if (diff < 60000) return t('common.justNow')
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}${t('common.minutes')}`
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}${t('common.hours')}`
     return new Date(ts).toLocaleDateString()
   }
 
   return (
     <div style={{ gridColumn: '2 / 5', padding: 20, overflow: 'auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700 }}>Trade History</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 700 }}>{t('history.title')}</h2>
         <div style={{ display: 'flex', gap: 8 }}>
           {onNavigateJournal && (
             <button
               onClick={onNavigateJournal}
-              title="Open Trade Journal"
+              title={t('history.openJournal')}
               style={{
                 padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 background: 'var(--bg-input)', color: 'var(--brand)', border: '1px solid var(--border-default)',
                 display: 'flex', alignItems: 'center', gap: 4,
               }}
-            ><BookOpen size={14} /> Journal</button>
+            ><BookOpen size={14} /> {t('history.journal')}</button>
           )}
           <button
             onClick={() => exportCSV(allHistory)}
             disabled={allHistory.length === 0}
-            title="Export trades to CSV"
+            title={t('history.exportCsv')}
             style={{
               padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: allHistory.length > 0 ? 'pointer' : 'default',
               background: 'var(--bg-input)', color: allHistory.length > 0 ? 'var(--text-secondary)' : 'var(--text-muted)',
               border: '1px solid var(--border-default)', display: 'flex', alignItems: 'center', gap: 4, opacity: allHistory.length > 0 ? 1 : 0.5,
             }}
-          ><Download size={14} /> CSV</button>
+          ><Download size={14} /> {t('history.csv')}</button>
           <button
             onClick={() => setFilter('all')}
             style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               background: filter === 'all' ? 'var(--brand)' : 'var(--bg-input)', color: filter === 'all' ? '#000' : 'var(--text-secondary)', border: 'none' }}
-          >All</button>
+          >{t('history.filterAll')}</button>
           <button
             onClick={() => setFilter('win')}
             style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               background: filter === 'win' ? 'var(--success)' : 'var(--bg-input)', color: filter === 'win' ? '#000' : 'var(--text-secondary)', border: 'none' }}
-          >Wins</button>
+          >{t('history.filterWins')}</button>
           <button
             onClick={() => setFilter('loss')}
             style={{ padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               background: filter === 'loss' ? 'var(--danger)' : 'var(--bg-input)', color: filter === 'loss' ? '#fff' : 'var(--text-secondary)', border: 'none' }}
-          >Losses</button>
+          >{t('history.filterLosses')}</button>
         </div>
       </div>
 
       {/* Stats bar */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, padding: 12, background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)' }}>
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('history.totalLabel')}</div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{stats.total}</div>
         </div>
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Win Rate</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('history.winRateLabel')}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--success)' }}>{stats.winRate}%</div>
         </div>
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>W / L</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('history.wlLabel')}</div>
           <div style={{ fontSize: 16, fontWeight: 700 }}><span style={{ color: 'var(--success)' }}>{stats.wins}</span> / <span style={{ color: 'var(--danger)' }}>{stats.losses}</span></div>
         </div>
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>PnL</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('history.pnlLabel')}</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: stats.totalPnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
             {stats.totalPnl >= 0 ? '+' : ''}${stats.totalPnl.toFixed(2)}
           </div>
@@ -155,7 +157,7 @@ export default function HistoryView({ tradeHistory, storedHistory, onNavigateJou
           <Search size={14} />
           <input
             type="text"
-            placeholder="Search history..."
+            placeholder={t('history.searchPlaceholder')}
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -165,21 +167,21 @@ export default function HistoryView({ tradeHistory, storedHistory, onNavigateJou
           style={{ padding: '6px 10px', background: 'var(--bg-input)', border: '1px solid var(--border-default)', borderRadius: 8, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}
         >
           <ArrowUpDown size={14} />
-          {sort === 'newest' ? 'Newest' : sort === 'oldest' ? 'Oldest' : 'Amount'}
+          {sort === 'newest' ? t('history.sortNewest') : sort === 'oldest' ? t('history.sortOldest') : t('history.sortAmount')}
         </button>
         <button
           onClick={() => setFilter('all')}
           style={{ padding: '6px 10px', background: 'var(--bg-input)', border: '1px solid var(--border-default)', borderRadius: 8, color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}
         >
           <Filter size={14} />
-          Clear
+          {t('common.clear')}
         </button>
       </div>
 
       {/* History list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {filtered.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No trades found</div>
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>{t('history.noTrades')}</div>
         )}
         {filtered.map((trade, i) => {
           const isExpanded = expandedId === (trade.id || i)
@@ -194,13 +196,13 @@ export default function HistoryView({ tradeHistory, storedHistory, onNavigateJou
               setNoteDraft(trade.note || '')
             }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {trade.note && <span style={{ fontSize: 11, color: 'var(--brand)', fontWeight: 600 }}>N</span>}
+                {trade.note && <span style={{ fontSize: 11, color: 'var(--brand)', fontWeight: 600 }}>{t('common.note').charAt(0).toUpperCase()}</span>}
                 <span style={{ fontWeight: 600, fontSize: 13 }}>{trade.asset || '—'}</span>
                 <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
                   background: trade.direction === 'call' ? 'rgba(0,200,83,0.12)' : 'rgba(255,23,68,0.12)',
                   color: trade.direction === 'call' ? 'var(--success)' : 'var(--danger)' }}
                 >{trade.direction?.toUpperCase() || '—'}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>${trade.amount?.toFixed(2) || '0.00'} · {trade.duration}s</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>${trade.amount?.toFixed(2) || '0.00'} · {trade.duration}{t('common.seconds')}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ textAlign: 'right' }}>
@@ -216,7 +218,7 @@ export default function HistoryView({ tradeHistory, storedHistory, onNavigateJou
               </div>
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-              Entry: {trade.entryPrice?.toFixed(5) || '—'} → Exit: {trade.exitPrice?.toFixed(5) || '—'}
+              {t('history.entryDetail')}: {trade.entryPrice?.toFixed(5) || '—'} → {t('history.exitDetail')}: {trade.exitPrice?.toFixed(5) || '—'}
             </div>
 
             {isExpanded && (
@@ -236,7 +238,7 @@ export default function HistoryView({ tradeHistory, storedHistory, onNavigateJou
                       e.currentTarget.blur()
                     }
                   }}
-                  placeholder="Add trade note…"
+                  placeholder={t('history.addNote')}
                   style={{
                     width: '100%', padding: '6px 8px', borderRadius: 4, fontSize: 11,
                     background: 'var(--bg-input)', border: noteDraft ? '1px solid var(--brand)' : '1px solid var(--border-default)',

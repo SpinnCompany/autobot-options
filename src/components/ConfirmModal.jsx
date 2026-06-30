@@ -1,7 +1,11 @@
+import { useTranslation } from 'react-i18next'
 import { AlertTriangle } from 'lucide-react'
 
-export default function ConfirmModal({ open, title, message, confirmLabel = 'Confirm', danger = false, onConfirm, onCancel }) {
+export default function ConfirmModal({ open, title, message, confirmLabel, danger = false, onConfirm, onCancel }) {
+  const { t } = useTranslation()
   if (!open) return null
+
+  const confirmText = confirmLabel !== undefined ? confirmLabel : t('modal.confirm')
 
   return (
     <div
@@ -38,12 +42,12 @@ export default function ConfirmModal({ open, title, message, confirmLabel = 'Con
             padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
             background: 'var(--bg-input)', border: '1px solid var(--border-default)',
             color: 'var(--text-secondary)', cursor: 'pointer',
-          }}>Cancel</button>
+          }}>{t('modal.cancel')}</button>
           <button onClick={onConfirm} style={{
             padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 600,
             background: danger ? 'var(--danger)' : 'var(--brand)',
             border: 'none', color: danger ? '#fff' : '#000', cursor: 'pointer',
-          }}>{confirmLabel}</button>
+          }}>{confirmText}</button>
         </div>
       </div>
     </div>

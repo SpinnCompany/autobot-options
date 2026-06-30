@@ -1,7 +1,10 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts'
 
 export default function AnalyticsView({ positions, storedHistory }) {
+  const { t } = useTranslation()
+
   const allHistory = useMemo(() => {
     const merged = [...positions.filter(p => p.status !== 'open'), ...storedHistory]
     const ids = new Set()
@@ -45,8 +48,8 @@ export default function AnalyticsView({ positions, storedHistory }) {
     const putWins = putTrades.filter(t => t.status === 'win').length
 
     const pieData = [
-      { name: 'Wins', value: wins.length, color: 'var(--success)' },
-      { name: 'Losses', value: losses.length, color: 'var(--danger)' },
+      { name: t('common.wins'), value: wins.length, color: 'var(--success)' },
+      { name: t('common.losses'), value: losses.length, color: 'var(--danger)' },
     ]
 
     // PnL timeline (last 20 trades)
@@ -63,7 +66,7 @@ export default function AnalyticsView({ positions, storedHistory }) {
       callWins, putWins, callTrades: callTrades.length, putTrades: putTrades.length,
       pieData, pnlTimeline,
     }
-  }, [allHistory])
+  }, [allHistory, t])
 
   const StatCard = ({ label, value, color }) => (
     <div style={{ flex: 1, padding: '12px 16px', background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)', textAlign: 'center' }}>
@@ -76,9 +79,9 @@ export default function AnalyticsView({ positions, storedHistory }) {
     if (!active || !payload?.length) return null
     return (
       <div style={{ background: 'var(--bg-overlay)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '6px 10px', fontSize: 12 }}>
-        <div style={{ fontWeight: 700 }}>Trade #{payload[0].payload.index}</div>
+        <div style={{ fontWeight: 700 }}>{t('analytics.tradeNumber')}{payload[0].payload.index}</div>
         <div style={{ color: payload[0].value >= 0 ? 'var(--success)' : 'var(--danger)' }}>
-          PnL: ${payload[0].value.toFixed(2)}
+          {t('analytics.pnlTooltip')}: ${payload[0].value.toFixed(2)}
         </div>
       </div>
     )
@@ -95,23 +98,23 @@ export default function AnalyticsView({ positions, storedHistory }) {
 
   return (
     <div style={{ gridColumn: '2 / 5', padding: 20, overflow: 'auto' }}>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Analytics</h2>
+      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>{t('analytics.title')}</h2>
 
       {/* Summary cards */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <StatCard label="Total Trades" value={stats.totalTrades} />
-        <StatCard label="Win Rate" value={`${stats.winRate.toFixed(1)}%`} color="var(--success)" />
-        <StatCard label="Total P&L" value={`${stats.totalPnl >= 0 ? '+' : ''}$${stats.totalPnl.toFixed(2)}`} color={stats.totalPnl >= 0 ? 'var(--success)' : 'var(--danger)'} />
-        <StatCard label="Best Trade" value={`$${stats.bestTrade.toFixed(2)}`} color="var(--success)" />
-        <StatCard label="Worst Trade" value={`$${stats.worstTrade.toFixed(2)}`} color="var(--danger)" />
-        <StatCard label="Avg P&L" value={`${stats.avgPnl >= 0 ? '+' : ''}$${stats.avgPnl.toFixed(2)}`} color={stats.avgPnl >= 0 ? 'var(--success)' : 'var(--danger)'} />
+        <StatCard label={t('analytics.totalTrades')} value={stats.totalTrades} />
+        <StatCard label={t('analytics.winRate')} value={`${stats.winRate.toFixed(1)}%`} color="var(--success)" />
+        <StatCard label={t('analytics.totalPnL')} value={`${stats.totalPnl >= 0 ? '+' : ''}$${stats.totalPnl.toFixed(2)}`} color={stats.totalPnl >= 0 ? 'var(--success)' : 'var(--danger)'} />
+        <StatCard label={t('analytics.bestTrade')} value={`$${stats.bestTrade.toFixed(2)}`} color="var(--success)" />
+        <StatCard label={t('analytics.worstTrade')} value={`$${stats.worstTrade.toFixed(2)}`} color="var(--danger)" />
+        <StatCard label={t('analytics.avgPnL')} value={`${stats.avgPnl >= 0 ? '+' : ''}$${stats.avgPnl.toFixed(2)}`} color={stats.avgPnl >= 0 ? 'var(--success)' : 'var(--danger)'} />
       </div>
 
       {/* Charts row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         {/* Win/Loss pie */}
         <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)', padding: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Win / Loss Distribution</div>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>{t('analytics.winLossDist')}</div>
           {stats.totalTrades > 0 ? (
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
@@ -124,23 +127,23 @@ export default function AnalyticsView({ positions, storedHistory }) {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No data yet</div>
+            <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{t('analytics.noData')}</div>
           )}
         </div>
 
         {/* CALL vs PUT */}
         <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)', padding: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Direction Performance</div>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>{t('analytics.directionPerf')}</div>
           <div style={{ display: 'flex', gap: 16 }}>
             <div style={{ flex: 1, textAlign: 'center', padding: 16, background: 'rgba(0,200,83,0.08)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--success)', marginBottom: 4 }}>CALL</div>
+              <div style={{ fontSize: 11, color: 'var(--success)', marginBottom: 4 }}>{t('common.call')}</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--success)' }}>{stats.callWins}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>wins / {stats.callTrades} trades</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('common.wins')} / {stats.callTrades} {t('common.trades')}</div>
             </div>
             <div style={{ flex: 1, textAlign: 'center', padding: 16, background: 'rgba(255,23,68,0.08)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 4 }}>PUT</div>
+              <div style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 4 }}>{t('common.put')}</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--danger)' }}>{stats.putWins}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>wins / {stats.putTrades} trades</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('common.wins')} / {stats.putTrades} {t('common.trades')}</div>
             </div>
           </div>
         </div>
@@ -148,7 +151,7 @@ export default function AnalyticsView({ positions, storedHistory }) {
 
       {/* PnL Timeline */}
       <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)', padding: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Cumulative P&L (Last 30 Trades)</div>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>{t('analytics.cumulativePnL')}</div>
         {stats.pnlTimeline.length > 0 ? (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={stats.pnlTimeline}>
@@ -164,19 +167,19 @@ export default function AnalyticsView({ positions, storedHistory }) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No trade data yet</div>
+          <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{t('analytics.noTradeData')}</div>
         )}
       </div>
 
       {/* Asset breakdown */}
       <div style={{ background: 'var(--bg-elevated)', borderRadius: 10, border: '1px solid var(--border-subtle)', padding: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>Asset Breakdown</div>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, color: 'var(--text-secondary)' }}>{t('analytics.assetBreakdown')}</div>
         {stats.assetBreakdown.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {stats.assetBreakdown.slice(0, 10).map(a => (
               <div key={a.asset} style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', background: 'var(--bg-input)', borderRadius: 6, gap: 10 }}>
                 <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>{a.asset}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.count} trades</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.count} {t('common.trades')}</span>
                 <span style={{ fontSize: 11, color: 'var(--success)' }}>{a.winRate}%</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: a.pnl >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                   {a.pnl >= 0 ? '+' : ''}${a.pnl.toFixed(2)}
@@ -185,7 +188,7 @@ export default function AnalyticsView({ positions, storedHistory }) {
             ))}
           </div>
         ) : (
-          <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No data yet</div>
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>{t('analytics.noData')}</div>
         )}
       </div>
     </div>

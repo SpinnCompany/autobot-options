@@ -11,6 +11,7 @@
    - Right margin padding so candles don't touch price scale */
 
 import React, { useRef, useEffect, useCallback, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 
 
@@ -95,6 +96,9 @@ export const CanvasChart = ({
   indicators = null,
   drawingMode = 'off',
 }) => {
+  const { t } = useTranslation();
+  const tRef = useRef(t);
+  tRef.current = t; // Keep t fresh for canvas fillText calls (non-reactive)
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -262,7 +266,7 @@ export const CanvasChart = ({
     const data = getVisibleCandles();
     if (data.length === 0) {
       ctx.fillStyle = "#8b8fa8"; ctx.font = "11px Inter, system-ui, sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("Waiting for market data…", w/2, h/2);
+      ctx.fillText(tRef.current('chart.waiting'), w/2, h/2);
       return;
     }
 
@@ -577,7 +581,7 @@ export const CanvasChart = ({
         // Label
         if (started) {
           ctx.fillStyle = "rgba(59,130,246,0.9)"; ctx.font = "11px inherit"; ctx.textAlign = "left"
-          ctx.fillText("EMA", m.left + 4, m.top + 12)
+          ctx.fillText(tRef.current('chart.ema'), m.left + 4, m.top + 12)
         }
       }
 
@@ -599,7 +603,7 @@ export const CanvasChart = ({
         if (started) {
           ctx.fillStyle = "rgba(250,204,21,0.9)"; ctx.font = "11px inherit"; ctx.textAlign = "left"
           const lblY = indicators.ema ? m.top + 26 : m.top + 12
-          ctx.fillText("SMA", m.left + 4, lblY)
+          ctx.fillText(tRef.current('chart.sma'), m.left + 4, lblY)
         }
       }
 
@@ -624,7 +628,7 @@ export const CanvasChart = ({
           // Label
           if (started) {
             ctx.fillStyle = "rgba(168,85,247,0.6)"; ctx.font = "11px inherit"; ctx.textAlign = "left"
-            ctx.fillText("BB", m.left + 4, m.top + 26)
+            ctx.fillText(tRef.current('chart.bb'), m.left + 4, m.top + 26)
           }
         }
         // Lower band
@@ -663,7 +667,7 @@ export const CanvasChart = ({
         ctx.stroke();
         // VWAP label
         ctx.fillStyle = '#ffc107'; ctx.font = 'bold 9px Inter, system-ui, sans-serif'; ctx.textAlign = 'left';
-        ctx.fillText('VWAP', m.left + 4, m.top + 14);
+        ctx.fillText(tRef.current('chart.vwap'), m.left + 4, m.top + 14);
       }
 
       // ── Custom indicators ──
@@ -726,7 +730,7 @@ export const CanvasChart = ({
 
       // Labels
       ctx.fillStyle = "rgba(255,23,68,0.75)"; ctx.font = "11px inherit"; ctx.textAlign = "left"
-      ctx.fillText("RSI 14", m.left + 4, rsiTop + 10)
+      ctx.fillText(tRef.current('chart.rsi14'), m.left + 4, rsiTop + 10)
       ctx.fillStyle = "rgba(255,255,255,0.18)"; ctx.textAlign = "right"
       ctx.fillText("70", w - m.right + 2, rsiY(70) + 3)
       ctx.fillText("30", w - m.right + 2, rsiY(30) + 3)
@@ -794,7 +798,7 @@ export const CanvasChart = ({
 
       // Label
       ctx.fillStyle = "rgba(168,85,247,0.7)"; ctx.font = "11px inherit"; ctx.textAlign = "left"
-      ctx.fillText("MACD", m.left + 4, macdTop + 10)
+      ctx.fillText(tRef.current('chart.macd'), m.left + 4, macdTop + 10)
     }
 
     /* ── Drawing preview (mid-placement) ── */
@@ -928,7 +932,7 @@ export const CanvasChart = ({
 
       // DOM label
       ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.font = 'bold 8px Inter, system-ui, sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText('DOM', obLeft, m.top + 10);
+      ctx.fillText(tRef.current('chart.dom'), obLeft, m.top + 10);
     }
 
     /* ── Volume Profile ── */
@@ -1008,7 +1012,7 @@ export const CanvasChart = ({
           ctx.beginPath(); ctx.arc(ex, ey, 4, 0, Math.PI * 2); ctx.stroke();
 
           // ── Floating label (text only, no background shape) ──
-          const dirLabel = isCall ? 'CALL' : 'PUT';
+          const dirLabel = isCall ? tRef.current('common.call') : tRef.current('common.put');
 
           // Build result line based on status
           let infoLine, infoColor
@@ -1114,8 +1118,8 @@ export const CanvasChart = ({
               ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8;
               ctx.beginPath(); ctx.arc(xx, xy, 3, 0, Math.PI * 2); ctx.stroke();
               // Close reason badge (tiny)
-              const reasonMap = { tp: 'TP', sl: 'SL', early_close: 'Closed', expired: 'Expired' };
-              const reason = reasonMap[tm.closeReason] || 'Closed';
+              const reasonMap = { tp: tRef.current('common.tp'), sl: tRef.current('common.sl'), early_close: tRef.current('common.closed'), expired: tRef.current('common.expired') };
+              const reason = reasonMap[tm.closeReason] || tRef.current('common.closed');
               ctx.font = 'bold 8px Inter, system-ui, sans-serif';
               const rw = ctx.measureText(reason).width + 8;
               ctx.fillStyle = 'rgba(10,11,15,0.85)';
@@ -1162,9 +1166,9 @@ export const CanvasChart = ({
     if (!marketOpen && displayData.length) {
       ctx.fillStyle = CLOSED_OVERLAY; ctx.fillRect(m.left, m.top, cw, ch);
       ctx.fillStyle = "#f59e0b"; ctx.font = "bold 14px inherit"; ctx.textAlign = "center";
-      ctx.fillText("MARKET CLOSED", m.left + cw / 2, m.top + ch / 2 - 8);
+      ctx.fillText(tRef.current('chart.marketClosed'), m.left + cw / 2, m.top + ch / 2 - 8);
       ctx.fillStyle = TEXT; ctx.font = "11px 'Inter', sans-serif";
-      ctx.fillText("Showing historical data", m.left + cw / 2, m.top + ch / 2 + 14);
+      ctx.fillText(tRef.current('chart.showingHistorical'), m.left + cw / 2, m.top + ch / 2 + 14);
     }
 
     needsRedraw.current = false;
@@ -1644,10 +1648,10 @@ export const CanvasChart = ({
           boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
         }}>
           <div style={{ color: "#5c6578", marginBottom: 2 }}>{fmtTime(tooltip.candle.t)}</div>
-          <div>O <span>{safeN(tooltip.candle.o).toFixed(decimals)}</span></div>
-          <div>H <span>{safeN(tooltip.candle.h).toFixed(decimals)}</span></div>
-          <div>L <span>{safeN(tooltip.candle.l).toFixed(decimals)}</span></div>
-          <div>C <span style={{ color: safeN(tooltip.candle.c) >= safeN(tooltip.candle.o) ? GREEN : RED }}>
+          <div>{t('chart.open')} <span>{safeN(tooltip.candle.o).toFixed(decimals)}</span></div>
+          <div>{t('chart.high')} <span>{safeN(tooltip.candle.h).toFixed(decimals)}</span></div>
+          <div>{t('chart.low')} <span>{safeN(tooltip.candle.l).toFixed(decimals)}</span></div>
+          <div>{t('chart.close')} <span style={{ color: safeN(tooltip.candle.c) >= safeN(tooltip.candle.o) ? GREEN : RED }}>
             {safeN(tooltip.candle.c).toFixed(decimals)}
           </span></div>
         </div>
@@ -1656,13 +1660,13 @@ export const CanvasChart = ({
       {/* In-canvas zoom buttons */}
       {candles.length > 0 && (
         <div className="blg-zoom-btns">
-          <button className="blg-zoom-btn" onClick={zoomIn} title="Zoom in"><ZoomIn size={14} /></button>
-          <button className="blg-zoom-btn" onClick={zoomOut} title="Zoom out"><ZoomOut size={14} /></button>
+          <button className="blg-zoom-btn" onClick={zoomIn} title={t('chart.zoomIn')}><ZoomIn size={14} /></button>
+          <button className="blg-zoom-btn" onClick={zoomOut} title={t('chart.zoomOut')}><ZoomOut size={14} /></button>
         </div>
       )}
 
       {drawingLines.length > 0 && (
-        <button className="blg-clear-drawings" onClick={() => setDrawingLines([])} title="Clear drawings">X</button>
+        <button className="blg-clear-drawings" onClick={() => setDrawingLines([])} title={t('chart.clearDrawings')}>X</button>
       )}
     </div>
   );

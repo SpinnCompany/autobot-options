@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { TrendingUp, TrendingDown, BarChart3, CandlestickChart, Wifi, WifiOff, Settings, X, Shuffle, Zap, ArrowLeftRight, Square, Columns2, Grid2X2, Play, Pause, StopCircle } from 'lucide-react'
 import { TIMEFRAMES, TF_MAP, getAssetColor, computeEMA, computeBollingerBands, computeSMA, computeRSI, computeMACD, computeVolumeProfile, computeVWAP, generateCandleHistory, generateOrderBook } from '../data/mockData'
 import { CanvasChart } from './CanvasChart'
@@ -18,6 +19,7 @@ function saveChartPrefs(patch) {
 }
 
 export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabId, onSelectTab, chartLayout = 'single', onSetChartLayout, timeframe, onTimeframeChange, priceHistory, candleHistory, connected, isLive = false, chartResetKey = 0, toastDuration, onToastDurationChange, confirmTrades, onToggleConfirmTrades, positions = [], alerts = [], onAddAlert, onRemoveAlert, priceMode = 'random', trendDir = 'up', onSetPriceMode, onSetTrendDir, isReplaying = false, replaySpeed = 5, replayProgress = 0, onStartReplay, onStopReplay, onToggleReplayPause, onSetReplaySpeed, pushEnabled = false, pushPermission = 'default', onTogglePush }) {
+  const { t } = useTranslation()
   const prefs = useRef(loadChartPrefs())
   const [chartType, setChartType] = useState(() => prefs.current.chartType || 'candlestick')
   const [showIndicators, setShowIndicators] = useState(() => prefs.current.showIndicators || false)
@@ -229,7 +231,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <button
               onClick={() => onSetPriceMode?.('random')}
-              title="Random walk"
+              title={t('chart.randomWalk')}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -247,7 +249,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                   onSetPriceMode?.('trending')
                 }
               }}
-              title={`Trending ${trendDir === 'up' ? 'up' : 'down'} — click to toggle direction`}
+              title={`${t('chart.trending')} ${trendDir === 'up' ? 'up' : 'down'} — ${t('chart.trendingToggle')}`}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -259,7 +261,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
             >{trendDir === 'up' ? <TrendingUp size={14} /> : <TrendingDown size={14} />}</button>
             <button
               onClick={() => onSetPriceMode?.('volatile')}
-              title="Volatile"
+              title={t('chart.volatile')}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -271,7 +273,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
             ><Zap size={14} /></button>
             <button
               onClick={() => onSetPriceMode?.('sideways')}
-              title="Sideways / ranging"
+              title={t('chart.sideways')}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -285,7 +287,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
 
           {/* Chart layout toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 4, borderLeft: '1px solid var(--border-subtle)', paddingLeft: 8 }}>
-            <button onClick={() => onSetChartLayout?.('single')} title="Single chart"
+            <button onClick={() => onSetChartLayout?.('single')} title={t('chart.single')}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -295,7 +297,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                 transition: 'all 0.15s',
               }}
             ><Square size={14} /></button>
-            <button onClick={() => onSetChartLayout?.('2up')} title="2-up"
+            <button onClick={() => onSetChartLayout?.('2up')} title={t('chart.twoUp')}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -305,7 +307,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                 transition: 'all 0.15s',
               }}
             ><Columns2 size={14} /></button>
-            <button onClick={() => onSetChartLayout?.('4up')} title="4-up"
+            <button onClick={() => onSetChartLayout?.('4up')} title={t('chart.fourUp')}
               style={{
                 width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 borderRadius: 6, cursor: 'pointer', padding: 0,
@@ -321,17 +323,17 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
           {onStartReplay && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 4, borderLeft: '1px solid var(--border-subtle)', paddingLeft: 8 }}>
               {!isReplaying ? (
-                <button onClick={onStartReplay} title="Start market replay"
+                <button onClick={onStartReplay} title={t('chart.startReplay')}
                   style={{
                     padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer',
                     background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                     color: 'var(--brand)', display: 'flex', alignItems: 'center', gap: 4,
                   }}>
-                  <Play size={14} /> Replay
+                  <Play size={14} /> {t('chart.replay')}
                 </button>
               ) : (
                 <>
-                  <button onClick={onToggleReplayPause} title="Pause/Resume"
+                  <button onClick={onToggleReplayPause} title={t('chart.pauseReplay')}
                     style={{
                       width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', background: 'var(--bg-elevated)', border: '1px solid var(--border-default)',
@@ -343,9 +345,9 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                       background: 'var(--bg-input)', border: '1px solid var(--border-default)',
                       color: 'var(--text-primary)', outline: 'none', cursor: 'pointer',
                     }}>
-                    <option value={2}>2x</option>
-                    <option value={5}>5x</option>
-                    <option value={10}>10x</option>
+                    <option value={2}>{t('chart.speed2x')}</option>
+                    <option value={5}>{t('chart.speed5x')}</option>
+                    <option value={10}>{t('chart.speed10x')}</option>
                   </select>
                   {/* Mini progress bar */}
                   <div style={{
@@ -357,7 +359,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
                       background: 'var(--brand)', transition: 'width 0.2s',
                     }} />
                   </div>
-                  <button onClick={onStopReplay} title="Stop replay"
+                  <button onClick={onStopReplay} title={t('chart.stopReplay')}
                     style={{
                       width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', background: 'var(--danger)', border: 'none',
@@ -368,7 +370,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
             </div>
           )}
 
-          <button onClick={() => setShowModal(true)} title="Chart Settings"
+          <button onClick={() => setShowModal(true)} title={t('chart.chartSettings')}
             style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4 }}>
             <Settings size={16} />
           </button>
@@ -391,7 +393,7 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
               fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
               color: 'var(--text-secondary)', letterSpacing: '0.03em',
             }}>{new Date(now).toISOString().replace('T', ' ').slice(0, 19)}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>UTC</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>{t('chart.utc')}</span>
           </div>
         </div>
       </div>
@@ -465,12 +467,12 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
               <span style={{
                 fontSize: 13, fontWeight: 500,
                 color: 'var(--text-secondary, #8b8fa8)',
-              }}>Loading market data…</span>
+              }}>{t('chart.loading')}</span>
               <span style={{
                 fontSize: 11, fontWeight: 400,
                 color: 'var(--text-muted, #5a5e72)',
                 marginTop: 4,
-              }}>Chart will appear when history arrives</span>
+              }}>{t('chart.loadingSub')}</span>
             </div>
           )}
         </div>
