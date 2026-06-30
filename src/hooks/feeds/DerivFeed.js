@@ -11,6 +11,8 @@
  * Prod: wss://options.autobotsignal.io/ws (via nginx → deriv-proxy container)
  */
 
+import { recordFeedTick, recordConnection } from '../../utils/tickDebug'
+
 // Guards against Chrome Private Network Access permission prompts:
 // Don't try localhost fallback from an HTTPS page — mixed-content WS is blocked,
 // and the connection attempt triggers "access other apps and services" dialogs.
@@ -102,6 +104,7 @@ export class DerivFeed {
     this.ws.onopen = () => {
       this.connected = true
       this.reconnectDelay = 2000
+      recordConnection('deriv', true)
       this._send({ type: 'get_symbols' })
       if (this.pendingSubs.size > 0) {
         this._send({ type: 'subscribe', symbols: [...this.pendingSubs] })
@@ -126,6 +129,7 @@ export class DerivFeed {
 
     this.ws.onclose = () => {
       this.connected = false
+      recordConnection('deriv', false)
       if (!this.intentionalClose) {
         this.onStatus?.('disconnected')
         this._scheduleReconnect()
@@ -153,6 +157,7 @@ export class DerivFeed {
     const type = msg.type || ''
 
     if (type === 'tick' && msg.symbol && msg.price != null) {
+      recordFeedTick(msg.symbol, msg.price, msg.epoch, 'deriv')
       this.onTick?.(msg.symbol, msg.price, msg.epoch)
       return
     }
@@ -191,6 +196,7 @@ export class DerivFeed {
         }
       }
       this.onStatus?.(msg.status)
+      recordConnection('deriv', msg.status === 'connected')
       if (msg.status === 'error') this.onError?.(msg.message || 'Proxy error')
       return
     }

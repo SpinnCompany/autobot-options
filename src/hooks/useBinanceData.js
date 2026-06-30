@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { BinanceFeed } from './feeds/BinanceFeed'
 import { normalizeBinanceSymbol } from '../data/binanceMapping'
+import { recordHookTick, recordSubscribe, recordConnection } from '../utils/tickDebug'
 
 export function useBinanceData({ onAssetTick, onCandles } = {}) {
   const [assets, setAssets] = useState([])
@@ -45,6 +46,7 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
     const feed = new BinanceFeed({
       onTick: (symbol, price, _epoch) => {
         if (!price) return
+        recordHookTick(symbol, 'binance')
         onAssetTickRef.current?.(symbol, price)
 
         const tickPrice = parseFloat(price.toFixed(5))
@@ -68,6 +70,7 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
       },
       onStatus: (status) => {
         setConnected(status === 'connected')
+        recordConnection('binance', status === 'connected')
         // Reset settled on disconnect so a reconnection triggers fresh
         // symbol sync — otherwise the settled guard permanently blocks
         // onSymbols after the first connection.
@@ -86,6 +89,7 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
   }, [])
 
   const subscribe = useCallback((symbols) => {
+    recordSubscribe('binance', symbols)
     feedRef.current?.subscribe(symbols)
   }, [])
 

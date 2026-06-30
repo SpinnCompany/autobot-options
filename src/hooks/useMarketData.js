@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { DerivFeed } from './feeds/DerivFeed'
 import { normalizeDerivSymbol } from '../data/derivMapping'
+import { recordHookTick, recordSubscribe, recordConnection } from '../utils/tickDebug'
 
 export function useMarketData({ onAssetTick, onCandles } = {}) {
   const [assets, setAssets] = useState([])
@@ -45,6 +46,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
     const feed = new DerivFeed({
       onTick: (symbol, price, _epoch) => {
         if (!price) return
+        recordHookTick(symbol, 'deriv')
         onAssetTickRef.current?.(symbol, price)
 
         const tickPrice = parseFloat(price.toFixed(5))
@@ -69,6 +71,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
       },
       onStatus: (status) => {
         setConnected(status === 'connected')
+        recordConnection('deriv', status === 'connected')
         if (status === 'disconnected') settled = false
       },
       onError: (msg) => console.warn('[Deriv]', msg),
@@ -84,6 +87,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
   }, [])
 
   const subscribe = useCallback((symbols) => {
+    recordSubscribe('deriv', symbols)
     feedRef.current?.subscribe(symbols)
   }, [])
 

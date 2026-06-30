@@ -139,9 +139,11 @@ function sendTick(symbol, price, epoch) {
   for (const client of frontendClients) {
     if (client.readyState !== WebSocket.OPEN) continue;
     const subs = clientSubs.get(client);
-    // If client hasn't explicitly subscribed, send all (backward compat).
-    // Once they subscribe, only send ticks for their symbols.
-    if (!subs || subs.has(symbol)) {
+    // Strict per-client filtering — client MUST explicitly subscribe to receive ticks.
+    // An empty subscription set is initialized on connect (line 296), so clients
+    // receive zero ticks until they send a 'subscribe' message.
+    // This is consistent with deriv-proxy.js sendTick logic.
+    if (subs && subs.has(symbol)) {
       client.send(msg);
     }
   }

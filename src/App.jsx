@@ -21,6 +21,7 @@ import { loadTradeHistory, TF_MAP } from './data/mockData'
 import { getActiveEvents } from './data/economicCalendar'
 import { useDemoEngine, MAX_OPEN } from './engine/DemoEngine'
 import { X, Plus, CandlestickChart, LayoutDashboard, History, Calendar, List, BookOpen, Grid3X3, Table2 } from 'lucide-react'
+import { recordAppTick, recordFlush, recordTabs } from './utils/tickDebug'
 
 const MAX_TABS = 8
 
@@ -53,7 +54,12 @@ export default function App() {
     const keys = [...new Set(tickSyncPendingRef.current.keys())]
     tickSyncPendingRef.current.clear()
     if (keys.length === 0) return
-    // Batch all pending tabs into a single setTabs call
+    recordFlush(keys.length)
+    // Batch all pending tabs into a single setTabs call.
+    // Limit priceHistory to last 200 entries — the chart uses candles for OHLC
+    // rendering; priceHistory is only for the sparkline/mini-chart overlay.
+    // Building 1440 objects per frame per tab causes GC pressure.
+    const MAX_PRICE_POINTS = 200
     setTabs(prev => {
       let next = prev
       for (const key of keys) {
@@ -63,7 +69,10 @@ export default function App() {
         if (!candles || candles.length === 0) continue
         next = next.map(t => {
           if (t.id !== tabId) return t
-          const priceHistory = candles.map(c => ({ time: c.time, price: c.close }))
+          const slice = candles.length > MAX_PRICE_POINTS
+            ? candles.slice(candles.length - MAX_PRICE_POINTS)
+            : candles
+          const priceHistory = slice.map(c => ({ time: c.time, price: c.close }))
           return { ...t, candleHistory: [...candles], priceHistory }
         })
       }
@@ -74,7 +83,11 @@ export default function App() {
   const syncCandlesToTab = useCallback((tabId, tf, candles) => {
     setTabs(prev => prev.map(t => {
       if (t.id !== tabId) return t
-      const priceHistory = candles.map(c => ({ time: c.time, price: c.close }))
+      const MAX_PRICE_POINTS = 200
+      const slice = candles.length > MAX_PRICE_POINTS
+        ? candles.slice(candles.length - MAX_PRICE_POINTS)
+        : candles
+      const priceHistory = slice.map(c => ({ time: c.time, price: c.close }))
       // Spread to create a new array reference — React's useMemo in ChartArea
       // depends on reference identity, so in-place mutations won't trigger redraws.
       return { ...t, candleHistory: [...candles], priceHistory }
@@ -93,11 +106,16 @@ export default function App() {
     const tickPrice = parseFloat(price.toFixed(5))
     const now = Date.now()
 
+    let matchedTabCount = 0
     tabsRef.current.forEach(tab => {
       if (tab.asset !== assetData.name) return
-      // Source-aware guard: prevent Binance ticks from filling Deriv tabs
-      // (e.g., both sources may have an asset named "Bitcoin")
-      if (tab.source && tab.source !== source) return
+      // Source-aware guard: prevent cross-source tick contamination.
+      // If tab has no source (legacy tabs from before source-tracking),
+      // auto-assign the source of the first tick that matches its asset.
+      if (!tab.source) {
+        tab.source = source
+      } else if (tab.source !== source) return
+      matchedTabCount++
       const tfMs = TF_MAP[tab.timeframe] || 60000
       const alignedT = Math.floor(now / tfMs) * tfMs
 
@@ -127,6 +145,7 @@ export default function App() {
         tickSyncRafRef.current = requestAnimationFrame(flushTickSyncs)
       }
     })
+    recordAppTick(symbol, source, matchedTabCount)
   }, [flushTickSyncs])
 
   // ── Generic candle handler — routes by source ──
@@ -138,7 +157,10 @@ export default function App() {
     if (!assetData) return
     tabsRef.current.forEach(tab => {
       if (tab.asset !== assetData.name) return
-      if (tab.source && tab.source !== source) return
+      // Auto-assign source for legacy tabs (same as handleAssetTick)
+      if (!tab.source) {
+        tab.source = source
+      } else if (tab.source !== source) return
       let store = candleStoreRef.current.get(tab.id)
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
 
@@ -238,8 +260,14 @@ export default function App() {
     if (!restoredSubsDone.current && sources.length > 0 && tabsRef.current.length > 0) {
       restoredSubsDone.current = true
       for (const tab of tabsRef.current) {
-        const asset = sources.find(a => a.name === tab.asset && a.source === tab.source)
+        // Legacy tabs may not have a source field — match by name only and
+        // auto-assign the source from the found asset.
+        const asset = tab.source
+          ? sources.find(a => a.name === tab.asset && a.source === tab.source)
+          : sources.find(a => a.name === tab.asset)
         if (!asset) continue
+        // Assign source to legacy tabs so handleAssetTick filtering works
+        if (!tab.source) tab.source = asset.source
         if (asset.source === 'binance' && asset.brokerSymbol) {
           binanceData.subscribe([asset.brokerSymbol])
           binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
@@ -266,6 +294,7 @@ export default function App() {
   // (these are rebuilt from live ticks + history fetch on restore).
   // Full candle data per tab would bloat localStorage and slow serialization.
   useEffect(() => {
+    recordTabs(tabs)
     try {
       const stripped = tabs.map(t => ({
         id: t.id,

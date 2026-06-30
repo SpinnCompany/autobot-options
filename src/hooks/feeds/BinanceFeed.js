@@ -11,6 +11,8 @@
  * Prod: wss://options.autobotsignal.io/ws/binance
  */
 
+import { recordFeedTick, recordConnection } from '../../utils/tickDebug'
+
 const PROXY_URL = import.meta.env.VITE_BINANCE_WS_URL
 
 // Guards against Chrome Private Network Access permission prompts:
@@ -107,6 +109,7 @@ export class BinanceFeed {
     this.ws.onopen = () => {
       this.connected = true
       this.reconnectDelay = 2000
+      recordConnection('binance', true)
       this._send({ type: 'get_symbols' })
       if (this.pendingSubs.size > 0) {
         this._send({ type: 'subscribe', symbols: [...this.pendingSubs] })
@@ -132,6 +135,7 @@ export class BinanceFeed {
 
     this.ws.onclose = () => {
       this.connected = false
+      recordConnection('binance', false)
       if (!this.intentionalClose) {
         this.onStatus?.('disconnected')
         this._scheduleReconnect()
@@ -159,6 +163,7 @@ export class BinanceFeed {
     const type = msg.type || ''
 
     if (type === 'tick' && msg.symbol && msg.price != null) {
+      recordFeedTick(msg.symbol, msg.price, msg.epoch, 'binance')
       this.onTick?.(msg.symbol, msg.price, msg.epoch)
       return
     }
@@ -197,6 +202,7 @@ export class BinanceFeed {
         }
       }
       this.onStatus?.(msg.status)
+      recordConnection('binance', msg.status === 'connected')
       if (msg.status === 'error') this.onError?.(msg.message || 'Binance proxy error')
       return
     }
