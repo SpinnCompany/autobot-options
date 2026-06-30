@@ -34,6 +34,10 @@ export default function App() {
   const candleStoreRef = useRef(new Map()) // tabId → Map<tf, candles[]>
   const MAX_CANDLES = 1440
 
+  // ── Track which tabs have received real candle history from fetchCandles ──
+  // Ticks build in the background but don't render until history arrives.
+  const historyReadyRef = useRef(new Map()) // tabId → Set<tf>
+
   // ── rAF batching for tick → state syncs ──
   const tickSyncPendingRef = useRef(new Map()) // `${tabId}:${tf}` → candles[]
   const tickSyncRafRef = useRef(null)
@@ -105,6 +109,10 @@ export default function App() {
       }
 
       store.set(tab.timeframe, candles)
+      // Only render tick-built candles after real history has arrived.
+      // Before that, ticks accumulate silently — no visible 1-by-1 buildup.
+      const ready = historyReadyRef.current.get(tab.id)?.has(tab.timeframe)
+      if (!ready) return
       // Batch state syncs via rAF — multiple ticks in the same frame
       // result in a single React render instead of N separate renders.
       tickSyncPendingRef.current.set(`${tab.id}:${tab.timeframe}`, candles)
@@ -114,7 +122,7 @@ export default function App() {
     })
   }, [flushTickSyncs])
 
-  // ── Deriv candle history — replaces seed with real OHLC from Deriv ──
+  // ── Deriv candle history — replaces tick-built candles with real OHLC from Deriv ──
   const onDerivCandles = useCallback((derivSymbol, candles) => {
     if (!candles || candles.length === 0) return
     const assetData = assetsRef.current.find(a => a.derivSymbol === derivSymbol)
@@ -124,6 +132,10 @@ export default function App() {
       let store = candleStoreRef.current.get(tab.id)
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
       store.set(tab.timeframe, candles)
+      // Mark this tab+timeframe as ready — chart rendering is now enabled
+      let ready = historyReadyRef.current.get(tab.id)
+      if (!ready) { ready = new Set(); historyReadyRef.current.set(tab.id, ready) }
+      ready.add(tab.timeframe)
       syncCandlesToTab(tab.id, tab.timeframe, candles)
     })
   }, [syncCandlesToTab])
@@ -531,6 +543,7 @@ export default function App() {
 
   const handleCloseTab = useCallback((tabId) => {
     candleStoreRef.current.delete(tabId)
+    historyReadyRef.current.delete(tabId)
     setChartResetKey(k => k + 1)
     setTabs(prev => {
       const filtered = prev.filter(t => t.id !== tabId)
@@ -551,12 +564,15 @@ export default function App() {
   const handleTimeframeChange = useCallback((tf) => {
     delete candleEpochRef.current[activeTabId]
 
-    // Check if we already have candles for this timeframe in the store
+    // Check if we already have real history for this timeframe in the store
     const store = candleStoreRef.current.get(activeTabId)
-    const cached = store?.get(tf)
-    if (cached && cached.length > 0) {
-      // Use cached candles immediately — no blank flash
-      syncCandlesToTab(activeTabId, tf, cached)
+    const ready = historyReadyRef.current.get(activeTabId)?.has(tf)
+    if (ready) {
+      const cached = store?.get(tf)
+      if (cached && cached.length > 0) {
+        // Use cached candles immediately — no blank flash
+        syncCandlesToTab(activeTabId, tf, cached)
+      }
     }
 
     setTabs(prev => prev.map(t => {
