@@ -107,6 +107,12 @@ export default function AssetPanel({ assets, selectedAsset, onSelectAsset, trade
                 <div className="asset-item-name">{asset.displayName || asset.name}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span className="asset-item-tag">{asset.category}</span>
+                  {asset.source === 'binance' && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: 'var(--brand)',
+                      background: 'rgba(245,123,0,0.12)', padding: '0 4px', borderRadius: 3,
+                    }}>BIN</span>
+                  )}
                   {totalTrades > 0 && (
                     <span style={{
                       fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',

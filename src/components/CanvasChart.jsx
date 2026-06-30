@@ -11,6 +11,7 @@
    - Right margin padding so candles don't touch price scale */
 
 import React, { useRef, useEffect, useCallback, useState } from "react";
+import { ZoomIn, ZoomOut } from 'lucide-react';
 
 
 
@@ -1655,8 +1656,8 @@ export const CanvasChart = ({
       {/* In-canvas zoom buttons */}
       {candles.length > 0 && (
         <div className="blg-zoom-btns">
-          <button className="blg-zoom-btn" onClick={zoomIn} title="Zoom in">+</button>
-          <button className="blg-zoom-btn" onClick={zoomOut} title="Zoom out">−</button>
+          <button className="blg-zoom-btn" onClick={zoomIn} title="Zoom in"><ZoomIn size={14} /></button>
+          <button className="blg-zoom-btn" onClick={zoomOut} title="Zoom out"><ZoomOut size={14} /></button>
         </div>
       )}
 

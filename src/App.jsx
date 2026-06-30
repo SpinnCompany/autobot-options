@@ -14,6 +14,7 @@ import BacktesterView from './components/BacktesterView'
 import { useSound } from './hooks/useSound'
 import { usePushNotifications } from './hooks/usePushNotifications'
 import { useMarketData } from './hooks/useMarketData'
+import { useBinanceData } from './hooks/useBinanceData'
 import { loadTradeHistory, TF_MAP } from './data/mockData'
 import { getActiveEvents } from './data/economicCalendar'
 import { useDemoEngine, MAX_OPEN } from './engine/DemoEngine'
@@ -72,11 +73,14 @@ export default function App() {
     }))
   }, [])
 
-  // ── Deriv-driven tick — builds candles from every tick ──
-  const onDerivAssetTick = useCallback((derivSymbol, price) => {
+  // ── Generic tick handler — routes by source (deriv | binance) ──
+  const handleAssetTick = useCallback((symbol, price, source = 'deriv') => {
     if (isReplayingRef.current) return
     const currentAssets = assetsRef.current
-    const assetData = currentAssets.find(a => a.derivSymbol === derivSymbol)
+    // Source-aware lookup: deriv uses derivSymbol, binance uses brokerSymbol
+    const assetData = source === 'binance'
+      ? currentAssets.find(a => a.brokerSymbol === symbol)
+      : currentAssets.find(a => a.derivSymbol === symbol)
     if (!assetData) return
     const tickPrice = parseFloat(price.toFixed(5))
     const now = Date.now()
@@ -90,9 +94,6 @@ export default function App() {
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
       let candles = store.get(tab.timeframe)
       if (!candles || candles.length === 0) {
-        // Start with a single candle from the first tick instead of seeding
-        // a full day of flat candles. The chart builds naturally tick-by-tick
-        // and fetchCandles fills in real history within seconds.
         candles = [{ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 0 }]
       }
 
@@ -109,12 +110,8 @@ export default function App() {
       }
 
       store.set(tab.timeframe, candles)
-      // Only render tick-built candles after real history has arrived.
-      // Before that, ticks accumulate silently — no visible 1-by-1 buildup.
       const ready = historyReadyRef.current.get(tab.id)?.has(tab.timeframe)
       if (!ready) return
-      // Batch state syncs via rAF — multiple ticks in the same frame
-      // result in a single React render instead of N separate renders.
       tickSyncPendingRef.current.set(`${tab.id}:${tab.timeframe}`, candles)
       if (!tickSyncRafRef.current) {
         tickSyncRafRef.current = requestAnimationFrame(flushTickSyncs)
@@ -122,17 +119,18 @@ export default function App() {
     })
   }, [flushTickSyncs])
 
-  // ── Deriv candle history — replaces tick-built candles with real OHLC from Deriv ──
-  const onDerivCandles = useCallback((derivSymbol, candles) => {
+  // ── Generic candle handler — routes by source ──
+  const handleCandles = useCallback((symbol, candles, source = 'deriv') => {
     if (!candles || candles.length === 0) return
-    const assetData = assetsRef.current.find(a => a.derivSymbol === derivSymbol)
+    const assetData = source === 'binance'
+      ? assetsRef.current.find(a => a.brokerSymbol === symbol)
+      : assetsRef.current.find(a => a.derivSymbol === symbol)
     if (!assetData) return
     tabsRef.current.forEach(tab => {
       if (tab.asset !== assetData.name) return
       let store = candleStoreRef.current.get(tab.id)
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
       store.set(tab.timeframe, candles)
-      // Mark this tab+timeframe as ready — chart rendering is now enabled
       let ready = historyReadyRef.current.get(tab.id)
       if (!ready) { ready = new Set(); historyReadyRef.current.set(tab.id, ready) }
       ready.add(tab.timeframe)
@@ -140,49 +138,68 @@ export default function App() {
     })
   }, [syncCandlesToTab])
 
-  const marketData = useMarketData({ onAssetTick: onDerivAssetTick, onCandles: onDerivCandles })
+  const marketData = useMarketData({
+    onAssetTick: (sym, price) => handleAssetTick(sym, price, 'deriv'),
+    onCandles: (sym, candles) => handleCandles(sym, candles, 'deriv'),
+  })
+  const binanceData = useBinanceData({
+    onAssetTick: (sym, price) => handleAssetTick(sym, price, 'binance'),
+    onCandles: (sym, candles) => handleCandles(sym, candles, 'binance'),
+  })
 
-  // Merge Deriv assets — add new ones, preserve existing prices
+  // Merge assets from all sources — deduplicate by name+source composite key
   const prevDerivLen = useRef(0)
+  const prevBinanceLen = useRef(0)
+  const autoTabOpened = useRef(false)
   useEffect(() => {
-    if (marketData.assets.length === 0) return
-    const isFirstBatch = prevDerivLen.current === 0
-    prevDerivLen.current = marketData.assets.length
+    const sources = []
+    if (marketData.assets.length > 0) {
+      prevDerivLen.current = marketData.assets.length
+      sources.push(...marketData.assets)
+    }
+    if (binanceData.assets.length > 0) {
+      prevBinanceLen.current = binanceData.assets.length
+      sources.push(...binanceData.assets)
+    }
+    if (sources.length === 0) return
 
     setAssets(prev => {
-      const existing = new Map(prev.map(a => [a.name, a]))
+      const existing = new Map(prev.map(a => [`${a.name}::${a.source}`, a]))
       let changed = false
-      for (const da of marketData.assets) {
-        const cur = existing.get(da.name)
-        if (!cur) { existing.set(da.name, da); changed = true }
-        else if (cur.price !== da.price && da.price > 0) {
-          existing.set(da.name, { ...cur, price: da.price, change: da.change })
+      for (const sa of sources) {
+        const key = `${sa.name}::${sa.source}`
+        const cur = existing.get(key)
+        if (!cur) { existing.set(key, sa); changed = true }
+        else if (cur.price !== sa.price && sa.price > 0) {
+          existing.set(key, { ...cur, price: sa.price, change: sa.change })
           changed = true
         }
       }
       return changed ? [...existing.values()] : prev
     })
 
-    if (isFirstBatch && marketData.assets.length > 0) {
-      // Open the first available asset as the initial tab (clean slate — no default)
-      if (tabsRef.current.length === 0) {
-        const fa = marketData.assets[0]
-        const newTab = {
-          id: 'tab-1',
-          asset: fa.name,
-          priceHistory: [],
-          candleHistory: [],
-          timeframe: '1m',
-        }
-        setTabs([newTab])
-        setActiveTabId('tab-1')
-        if (fa.derivSymbol) {
-          marketData.subscribe([fa.derivSymbol])
-          marketData.fetchCandles(fa.derivSymbol, 60, 1440)
-        }
+    // Auto-open first tab from whichever source loads first
+    if (!autoTabOpened.current && sources.length > 0 && tabsRef.current.length === 0) {
+      autoTabOpened.current = true
+      const fa = sources[0]
+      const newTab = {
+        id: 'tab-1',
+        asset: fa.name,
+        priceHistory: [],
+        candleHistory: [],
+        timeframe: '1m',
+      }
+      setTabs([newTab])
+      setActiveTabId('tab-1')
+      if (fa.source === 'binance' && fa.brokerSymbol) {
+        binanceData.subscribe([fa.brokerSymbol])
+        binanceData.fetchCandles(fa.brokerSymbol, 60, 1440)
+      } else if (fa.derivSymbol) {
+        marketData.subscribe([fa.derivSymbol])
+        marketData.fetchCandles(fa.derivSymbol, 60, 1440)
       }
     }
-  }, [marketData.assets])
+  }, [marketData.assets, binanceData.assets])
 
   // ── Multi‑tab state ── clean slate on every refresh, no default tab
   const [tabs, setTabs] = useState([])
@@ -524,7 +541,6 @@ export default function App() {
       return
     }
     const asset = assets.find(a => a.name === name)
-    const derivSymbol = asset?.derivSymbol
     const newTab = {
       id: `tab-${Date.now()}`,
       asset: name,
@@ -535,11 +551,14 @@ export default function App() {
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
     setChartResetKey(k => k + 1)
-    if (derivSymbol) {
-      marketData.subscribe([derivSymbol])
-      marketData.fetchCandles(derivSymbol, 60, 1440)
+    if (asset?.source === 'binance' && asset?.brokerSymbol) {
+      binanceData.subscribe([asset.brokerSymbol])
+      binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
+    } else if (asset?.derivSymbol) {
+      marketData.subscribe([asset.derivSymbol])
+      marketData.fetchCandles(asset.derivSymbol, 60, 1440)
     }
-  }, [tabs, assets, addToast, marketData])
+  }, [tabs, assets, addToast, marketData, binanceData])
 
   const handleCloseTab = useCallback((tabId) => {
     candleStoreRef.current.delete(tabId)
@@ -581,11 +600,13 @@ export default function App() {
     }))
     const activeTab = tabsRef.current.find(t => t.id === activeTabId)
     const asset = assetsRef.current.find(a => a.name === activeTab?.asset)
-    if (asset?.derivSymbol) {
-      const granularity = Math.floor((TF_MAP[tf] || 60000) / 1000)
+    const granularity = Math.floor((TF_MAP[tf] || 60000) / 1000)
+    if (asset?.source === 'binance' && asset?.brokerSymbol) {
+      binanceData.fetchCandles(asset.brokerSymbol, granularity, 1440)
+    } else if (asset?.derivSymbol) {
       marketData.fetchCandles(asset.derivSymbol, granularity, 1440)
     }
-  }, [activeTabId, marketData, syncCandlesToTab])
+  }, [activeTabId, marketData, binanceData, syncCandlesToTab])
 
   // ── Mobile panel toggles ──
   const [mobilePanel, setMobilePanel] = useState(null) // 'assets' | 'trade' | null
@@ -678,7 +699,7 @@ export default function App() {
               onTimeframeChange={handleTimeframeChange}
               priceHistory={activeTab.priceHistory}
               candleHistory={activeTab.candleHistory}
-              connected={marketData.connected}
+              connected={marketData.connected || binanceData.connected}
               isLive={marketData.connected}
               chartResetKey={chartResetKey}
               toastDuration={toastDuration}
