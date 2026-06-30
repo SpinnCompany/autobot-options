@@ -130,11 +130,21 @@ export default function App() {
       if (tab.asset !== assetData.name) return
       let store = candleStoreRef.current.get(tab.id)
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
-      store.set(tab.timeframe, candles)
-      let ready = historyReadyRef.current.get(tab.id)
-      if (!ready) { ready = new Set(); historyReadyRef.current.set(tab.id, ready) }
-      ready.add(tab.timeframe)
-      syncCandlesToTab(tab.id, tab.timeframe, candles)
+
+      // Merge fetched history with live tick-built candles.
+      // Tick-built candles (from handleAssetTick) are the most recent;
+      // fetched history fills in the past. Dedup by timestamp.
+      const existing = store.get(tab.timeframe) || []
+      const existingMap = new Map(existing.map(c => [c.time, c]))
+      for (const c of candles) {
+        if (!existingMap.has(c.time)) existingMap.set(c.time, c)
+      }
+      const merged = [...existingMap.values()].sort((a, b) => a.time - b.time)
+      // Cap at MAX_CANDLES
+      const trimmed = merged.length > MAX_CANDLES ? merged.slice(merged.length - MAX_CANDLES) : merged
+
+      store.set(tab.timeframe, trimmed)
+      syncCandlesToTab(tab.id, tab.timeframe, trimmed)
     })
   }, [syncCandlesToTab])
 
@@ -191,6 +201,11 @@ export default function App() {
       }
       setTabs([newTab])
       setActiveTabId('tab-1')
+
+      // Mark tab ready immediately — ticks build candles live while history loads
+      const readySet = new Set(['1m'])
+      historyReadyRef.current.set('tab-1', readySet)
+
       if (fa.source === 'binance' && fa.brokerSymbol) {
         binanceData.subscribe([fa.brokerSymbol])
         binanceData.fetchCandles(fa.brokerSymbol, 60, 1440)
@@ -566,6 +581,14 @@ export default function App() {
     setTabs(prev => [...prev, newTab])
     setActiveTabId(newTab.id)
     setChartResetKey(k => k + 1)
+
+    // Mark tab ready immediately — ticks start building candles right away
+    // instead of waiting for the full history fetch to complete.
+    // When history arrives, it gets merged with the live tick-built candles.
+    const readySet = historyReadyRef.current.get(newTab.id) || new Set()
+    readySet.add('1m')
+    historyReadyRef.current.set(newTab.id, readySet)
+
     if (asset?.source === 'binance' && asset?.brokerSymbol) {
       binanceData.subscribe([asset.brokerSymbol])
       binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
