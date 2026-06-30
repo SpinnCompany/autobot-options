@@ -52,18 +52,26 @@ export class DemoEngine {
 
   constructor() {
     this._loadState()
-    // Recalculate expiresAt for open positions — they keep their original
-    // durations but restart their countdown from now on page refresh.
-    // This is generous: the user doesn't lose active trades on refresh.
+    // Resolve any open positions that expired while the page was closed.
+    // Positions keep their absolute expiresAt timestamp — no extension.
+    // If expiresAt has passed, resolve now using last known price.
     const now = Date.now()
+    const resolvedIds = []
     for (const pos of this.positions) {
-      if (pos.status === 'open') {
-        // Preserve remaining time if possible, otherwise restart full duration
-        const remainingMs = Math.max(0, (pos._remainingMs || (pos.duration * 1000)))
-        pos.openTime = now
-        pos._remainingMs = remainingMs
-        pos.expiresAt = now + remainingMs
+      if (pos.status !== 'open') continue
+      // If expiresAt wasn't stored (legacy data), calculate from duration
+      if (!pos.expiresAt) {
+        pos.expiresAt = (pos.openTime || now) + (pos.duration || 60) * 1000
       }
+      if (now >= pos.expiresAt) {
+        // Position should have closed while page was away — resolve now
+        const exitPrice = pos._lastPrice || pos.entryPrice
+        this._resolvePosition(pos.id, pos.amount, pos.payoutPercent || this.defaultPayout, pos.asset, exitPrice)
+        resolvedIds.push(pos.id)
+      }
+    }
+    if (resolvedIds.length > 0) {
+      this._persist()
     }
   }
 
@@ -360,6 +368,9 @@ export class DemoEngine {
    * @param {Map<string, number>} assetPrices — asset name → current price
    */
   checkTP_SL(assetPrices) {
+    // Stamp last known price on every open position for accurate expiry resolution
+    this._stampLastPrices(assetPrices)
+
     const openWithTPSL = this.positions.filter(
       p => p.status === 'open' && (p.tp || p.sl)
     )
@@ -426,6 +437,9 @@ export class DemoEngine {
    * @returns {string[]} IDs of expired positions
    */
   checkExpiry(assetPrices) {
+    // Stamp last known price for fair resolution if position expires mid-tick
+    this._stampLastPrices(assetPrices)
+
     const now = Date.now()
     const expired = this.positions.filter(
       p => p.status === 'open' && p.expiresAt && now >= p.expiresAt
@@ -669,6 +683,22 @@ export class DemoEngine {
     this._sound(outcome === 'win' ? 'win' : 'loss')
   }
 
+  // ── Price Tracking ──────────────────────────────────────
+
+  /**
+   * Stamp the last known market price on every open position.
+   * Called on each tick before expiry/TP/SL checks so _lastPrice
+   * is always fresh. If the page is refreshed and a position expired
+   * while away, we resolve against this price.
+   */
+  _stampLastPrices(assetPrices) {
+    for (const pos of this.positions) {
+      if (pos.status !== 'open') continue
+      const price = assetPrices.get(pos.asset)
+      if (price != null) pos._lastPrice = price
+    }
+  }
+
   // ── Persistence ─────────────────────────────────────────
   //
   // Every closed position is written to localStorage with the full record:
@@ -713,7 +743,6 @@ export class DemoEngine {
 
   _saveState() {
     try {
-      const now = Date.now()
       const state = {
         balance: this.balance,
         baseAmount: this.baseAmount,
@@ -727,10 +756,12 @@ export class DemoEngine {
         newsBlockLevels: this.newsBlockLevels,
         dailyTradeCount: this.dailyTradeCount,
         _tradeDay: this._tradeDay,
+        // Store absolute expiresAt — positions keep their true expiry time
+        // across refreshes. _lastPrice allows fair resolution if the position
+        // expires while the page is closed.
         positions: this.positions.map(p => ({
           ...p,
-          // Store remaining ms for open positions so we can resume countdown
-          _remainingMs: p.status === 'open' ? Math.max(0, p.expiresAt - now) : undefined,
+          _legacy: undefined, // strip transient field
         })),
         pendingOrders: this.pendingOrders,
       }
