@@ -45,14 +45,20 @@ export default function App() {
 
   const flushTickSyncs = useCallback(() => {
     tickSyncRafRef.current = null
-    const pending = [...tickSyncPendingRef.current.entries()]
+    // Collect unique tab+tf keys that need syncing, then read the latest
+    // candles from candleStoreRef (which may have been updated by handleCandles
+    // with merged history since the tick was queued).
+    const keys = [...new Set(tickSyncPendingRef.current.keys())]
     tickSyncPendingRef.current.clear()
-    if (pending.length === 0) return
+    if (keys.length === 0) return
     // Batch all pending tabs into a single setTabs call
     setTabs(prev => {
       let next = prev
-      for (const [key, candles] of pending) {
+      for (const key of keys) {
         const [tabId, tf] = key.split(':')
+        const store = candleStoreRef.current.get(tabId)
+        const candles = store?.get(tf)
+        if (!candles || candles.length === 0) continue
         next = next.map(t => {
           if (t.id !== tabId) return t
           const priceHistory = candles.map(c => ({ time: c.time, price: c.close }))
