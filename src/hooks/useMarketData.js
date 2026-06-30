@@ -13,28 +13,29 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
   const onCandlesRef = useRef(onCandles)
   onCandlesRef.current = onCandles
 
-  // rAF-batched asset price updates — prevents render floods from high-frequency ticks
+  // Batched asset price updates — throttled to ~4 Hz (every 250ms)
   const priceBufRef = useRef(new Map())  // symbol → price
-  const priceRafRef = useRef(null)
-  const assetsRef = useRef(assets)
-  assetsRef.current = assets
+  const priceTimerRef = useRef(null)
 
   const flushPriceUpdates = useCallback(() => {
-    priceRafRef.current = null
+    priceTimerRef.current = null
     const updates = [...priceBufRef.current.entries()]
     priceBufRef.current.clear()
     if (updates.length === 0) return
     setAssets(prev => {
       let next = prev
+      let changed = false
       for (const [symbol, price] of updates) {
         next = next.map(a => {
           if (a.derivSymbol !== symbol) return a
-          if (!a.price || a.price <= 0) return { ...a, price, change: '0.00', source: 'deriv' }
-          const chg = ((price - a.price) / a.price * 100)
+          const prevPrice = a.price || 0
+          if (Math.abs(price - prevPrice) < 0.00001) return a
+          changed = true
+          const chg = prevPrice > 0 ? ((price - prevPrice) / prevPrice * 100) : 0
           return { ...a, price, change: chg.toFixed(2), source: 'deriv' }
         })
       }
-      return next
+      return changed ? next : prev
     })
   }, [])
 
@@ -48,8 +49,8 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
 
         const tickPrice = parseFloat(price.toFixed(5))
         priceBufRef.current.set(symbol, tickPrice)
-        if (!priceRafRef.current) {
-          priceRafRef.current = requestAnimationFrame(flushPriceUpdates)
+        if (!priceTimerRef.current) {
+          priceTimerRef.current = setTimeout(flushPriceUpdates, 250)
         }
 
         symbolTicksRef.current.set(symbol, (symbolTicksRef.current.get(symbol) || 0) + 1)

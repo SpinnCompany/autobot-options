@@ -11,27 +11,31 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
   const onCandlesRef = useRef(onCandles)
   onCandlesRef.current = onCandles
 
-  // rAF-batched asset price updates — prevents render floods when many
-  // pairs tick simultaneously (e.g. 441 Binance pairs at 1 tick/sec each).
+  // Batched asset price updates — throttled to ~4 Hz (every 250ms) to prevent
+  // render floods from 441 Binance pairs ticking at 1 tick/sec each.
   const priceBufRef = useRef(new Map()) // symbol → price
-  const priceRafRef = useRef(null)
+  const priceTimerRef = useRef(null)
 
   const flushPriceUpdates = useCallback(() => {
-    priceRafRef.current = null
+    priceTimerRef.current = null
     const updates = [...priceBufRef.current.entries()]
     priceBufRef.current.clear()
     if (updates.length === 0) return
     setAssets(prev => {
+      // Only update if price actually differs (skip same-value ticks)
       let next = prev
+      let changed = false
       for (const [symbol, price] of updates) {
         next = next.map(a => {
           if (a.brokerSymbol !== symbol) return a
-          if (!a.price || a.price <= 0) return { ...a, price, change: '0.00', source: 'binance' }
-          const chg = ((price - a.price) / a.price * 100)
+          const prevPrice = a.price || 0
+          if (Math.abs(price - prevPrice) < 0.00001) return a // unchanged
+          changed = true
+          const chg = prevPrice > 0 ? ((price - prevPrice) / prevPrice * 100) : 0
           return { ...a, price, change: chg.toFixed(2), source: 'binance' }
         })
       }
-      return next
+      return changed ? next : prev
     })
   }, [])
 
@@ -44,10 +48,10 @@ export function useBinanceData({ onAssetTick, onCandles } = {}) {
         onAssetTickRef.current?.(symbol, price)
 
         const tickPrice = parseFloat(price.toFixed(5))
-        // Batch price updates via rAF
+        // Batch price updates — flush at most every 250ms
         priceBufRef.current.set(symbol, tickPrice)
-        if (!priceRafRef.current) {
-          priceRafRef.current = requestAnimationFrame(flushPriceUpdates)
+        if (!priceTimerRef.current) {
+          priceTimerRef.current = setTimeout(flushPriceUpdates, 250)
         }
       },
       onSymbols: (raw) => {
