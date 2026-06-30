@@ -19,7 +19,8 @@ const PORT = parseInt(process.argv[2] || '8091', 10)
 let derivWs = null
 let derivConnected = false
 const frontendClients = new Set()
-const activeSubs = new Set()
+const activeSubs = new Set()        // Deriv-level subscriptions
+const clientSubs = new Map()        // per-client: client → Set<symbol>
 let reconnectTimer = null
 let reconnectDelay = 2000
 
@@ -90,13 +91,13 @@ function handleDerivMsg(msg) {
   // Server time ping — ignore, no action needed
   if (type === 'time') return
 
-  // Tick — relay to all frontend clients (single price, no bid/ask)
+  // Tick — relay only to subscribed clients (per-client filtering)
   if (type === 'tick' && msg.tick) {
     const t = msg.tick
     if (t.symbol) {
       const px = t.bid && t.ask ? (t.bid + t.ask) / 2 : (t.bid || t.ask || t.quote || 0)
       if (px > 0) {
-        broadcast({ type: 'tick', symbol: t.symbol, price: px, epoch: t.epoch })
+        sendTick(t.symbol, px, t.epoch)
       }
     }
     return
@@ -157,13 +158,13 @@ function handleDerivMsg(msg) {
     return
   }
 
-  // Echo tick
+  // Echo tick — per-client filtered
   if (msg.echo_req?.ticks && msg.tick) {
     const t = msg.tick
     if (t.symbol) {
       const px = t.bid && t.ask ? (t.bid + t.ask) / 2 : (t.bid || t.ask || t.quote || 0)
       if (px > 0) {
-        broadcast({ type: 'tick', symbol: t.symbol, price: px, epoch: t.epoch })
+        sendTick(t.symbol, px, t.epoch)
       }
     }
   }
@@ -183,6 +184,10 @@ wss.on('error', (e) => {
 
 wss.on('connection', (clientWs) => {
   frontendClients.add(clientWs)
+  // Init empty subscription set — client receives NO ticks until it
+  // explicitly subscribes. Closes the race window where new clients
+  // get flooded with all Deriv ticks before their first subscribe.
+  clientSubs.set(clientWs, new Set())
   log(`Client connected (${frontendClients.size} total)`)
 
   // Send current status
@@ -205,11 +210,13 @@ wss.on('connection', (clientWs) => {
 
   clientWs.on('close', () => {
     frontendClients.delete(clientWs)
+    clientSubs.delete(clientWs)
     log(`Client disconnected (${frontendClients.size} total)`)
   })
 
   clientWs.on('error', () => {
     frontendClients.delete(clientWs)
+    clientSubs.delete(clientWs)
   })
 })
 
@@ -219,7 +226,11 @@ function handleClientMsg(msg, clientWs) {
   switch (msg.type) {
     case 'subscribe':
       if (Array.isArray(msg.symbols)) {
+        // Track per-client subscriptions for tick filtering
+        if (!clientSubs.has(clientWs)) clientSubs.set(clientWs, new Set())
+        const csubs = clientSubs.get(clientWs)
         for (const sym of msg.symbols) {
+          csubs.add(sym)
           if (activeSubs.has(sym)) continue
           activeSubs.add(sym)
           if (derivConnected && derivWs) {
@@ -231,6 +242,8 @@ function handleClientMsg(msg, clientWs) {
 
     case 'unsubscribe':
       if (Array.isArray(msg.symbols)) {
+        const csubs = clientSubs.get(clientWs)
+        if (csubs) for (const sym of msg.symbols) csubs.delete(sym)
         for (const sym of msg.symbols) {
           activeSubs.delete(sym)
           if (derivConnected && derivWs) {
@@ -277,6 +290,21 @@ function broadcast(data) {
   for (const client of frontendClients) {
     if (client.readyState === WebSocket.OPEN) {
       client.send(json)
+    }
+  }
+}
+
+// Send a tick only to clients subscribed to that symbol.
+// Without per-client filtering, every client gets every Deriv tick.
+function sendTick(symbol, price, epoch) {
+  const msg = JSON.stringify({ type: 'tick', symbol, price, epoch })
+  for (const client of frontendClients) {
+    if (client.readyState !== WebSocket.OPEN) continue
+    const subs = clientSubs.get(client)
+    // Empty set = no subscription yet (initialized on connect).
+    // Client must explicitly subscribe to receive ticks.
+    if (subs && subs.has(symbol)) {
+      client.send(msg)
     }
   }
 }
