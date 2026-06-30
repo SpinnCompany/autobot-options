@@ -10,7 +10,7 @@ metadata:
 
 Real binary options broker platforms have sophisticated trading environments. This audit lists what AutobotOptions is missing, organized by implementation priority.
 
-**Status as of July 1, 2026: 37/46 complete (80%). Recent additions: live Binance data (441 pairs), full localStorage persistence (engine state, tabs, UI), absolute position expiry, Chrome PNA fix, secret cleanup.**
+**Status as of June 30, 2026: 38/46 complete (83%). All 15 known bugs resolved. Real WebSocket (#29) confirmed live — Binance 441 pairs streaming.**
 
 Last verified: 2026-06-30 — complete codebase review.
 
@@ -52,11 +52,11 @@ Last verified: 2026-06-30 — complete codebase review.
 | 27 | Risk Management Tools | ✅ done | Daily loss limit, max position % of balance, max daily trades, min payout %, news event blocker (configurable impact levels). All in TradePanel Risk section + DemoEngine. |
 | 28 | Trade Journal / Notes | ✅ done | Notes on positions (inline input on cards). Dedicated JournalView page. HistoryView note editing. Search across journal entries. |
 
-## Complex (18 items — 1 DONE, 17 PENDING)
+## Complex (18 items — 12 DONE, 6 PENDING)
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
-| 29 | Real WebSocket Price Feed | ⬜ pending | Architecture exists in useWebSocket hook. Requires backend. |
+| 29 | Real WebSocket Price Feed | ✅ done | BinanceFeed + binance-proxy streams 441 live USDT pairs. DerivFeed + deriv-proxy for Deriv API. Real tickers, klines, and symbol data via WebSocket proxies. |
 | 30 | Social / Copy Trading | ⬜ pending | Major feature — requires multi-user backend. |
 | 31 | Tournament Mode | ⬜ pending | Requires social features + backend. |
 | 32 | Full Order Book | ✅ done | Synthetic L2 depth bars on chart (green bids / red asks). Toggle in Chart Settings. |
@@ -81,11 +81,11 @@ Last verified: 2026-06-30 — complete codebase review.
 |------|------|---------|-------|
 | Quick Wins | 10 | 0 | 10 |
 | Medium | 16 | 2 (deferred) | 18 |
-| Complex | 11 | 7 | 18 |
-| **Total** | **37** | **9** | **46** |
+| Complex | 12 | 6 | 18 |
+| **Total** | **38** | **8** | **46** |
 
-**Progress:** 37 of 46 complete (80%). 2 deferred (#25-26), 7 pending (all require backend infrastructure).
+**Progress:** 38 of 46 complete (83%). 2 deferred (#25-26), 6 pending (all require backend infrastructure).
 
-**Next priorities:** Account Types (#25), Deposit/Withdrawal (#26) — the only remaining medium items. Then tackle complex items starting with Real WebSocket (#29), Volume Profile (#33), Market Replay (#35).
+**Next priorities:** Multi-Language Support (#43) — the only remaining non-backend item. Then Account Types (#25), Deposit/Withdrawal (#26) when real account engine exists.
 
 **How to apply:** Each feature should be verified via the `trade-test` skill after implementation. See [[broker-integration-architecture]] for architecture context, [[broker-guidance-protocol]] for decision framework.

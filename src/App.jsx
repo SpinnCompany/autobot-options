@@ -1,16 +1,18 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react'
 import Sidebar from './components/Sidebar'
 import AssetPanel from './components/AssetPanel'
 import ChartArea from './components/ChartArea'
 import TradePanel from './components/TradePanel'
 import ToastContainer from './components/ToastContainer'
-import HistoryView from './components/HistoryView'
-import AnalyticsView from './components/AnalyticsView'
-import EconomicCalendar from './components/EconomicCalendar'
-import JournalView from './components/JournalView'
-import HeatmapView from './components/HeatmapView'
-import CorrelationMatrix from './components/CorrelationMatrix'
-import BacktesterView from './components/BacktesterView'
+
+// ── Lazy-loaded secondary views — code-split from main bundle ──
+const HistoryView = lazy(() => import('./components/HistoryView'))
+const AnalyticsView = lazy(() => import('./components/AnalyticsView'))
+const EconomicCalendar = lazy(() => import('./components/EconomicCalendar'))
+const JournalView = lazy(() => import('./components/JournalView'))
+const HeatmapView = lazy(() => import('./components/HeatmapView'))
+const CorrelationMatrix = lazy(() => import('./components/CorrelationMatrix'))
+const BacktesterView = lazy(() => import('./components/BacktesterView'))
 import { useSound } from './hooks/useSound'
 import { usePushNotifications } from './hooks/usePushNotifications'
 import { useMarketData } from './hooks/useMarketData'
@@ -869,31 +871,45 @@ export default function App() {
       )}
 
       {activeSection === 'history' && (
-        <HistoryView tradeHistory={closedPositions} storedHistory={loadTradeHistory()} onNavigateJournal={() => setActiveSection('journal')} />
+        <Suspense fallback={<div className="section-loading" />}>
+          <HistoryView tradeHistory={closedPositions} storedHistory={loadTradeHistory()} onNavigateJournal={() => setActiveSection('journal')} />
+        </Suspense>
       )}
 
       {activeSection === 'analytics' && (
-        <AnalyticsView positions={engine.positions} storedHistory={loadTradeHistory()} />
+        <Suspense fallback={<div className="section-loading" />}>
+          <AnalyticsView positions={engine.positions} storedHistory={loadTradeHistory()} />
+        </Suspense>
       )}
 
       {activeSection === 'calendar' && (
-        <EconomicCalendar />
+        <Suspense fallback={<div className="section-loading" />}>
+          <EconomicCalendar />
+        </Suspense>
       )}
 
       {activeSection === 'journal' && (
-        <JournalView positions={engine.positions} storedHistory={loadTradeHistory()} />
+        <Suspense fallback={<div className="section-loading" />}>
+          <JournalView positions={engine.positions} storedHistory={loadTradeHistory()} />
+        </Suspense>
       )}
 
       {activeSection === 'heatmap' && (
-        <HeatmapView assets={assets} positions={engine.positions} storedHistory={loadTradeHistory()} />
+        <Suspense fallback={<div className="section-loading" />}>
+          <HeatmapView assets={assets} positions={engine.positions} storedHistory={loadTradeHistory()} />
+        </Suspense>
       )}
 
       {activeSection === 'correlation' && (
-        <CorrelationMatrix assets={assets} />
+        <Suspense fallback={<div className="section-loading" />}>
+          <CorrelationMatrix assets={assets} />
+        </Suspense>
       )}
 
       {activeSection === 'backtest' && (
-        <BacktesterView assets={assets} />
+        <Suspense fallback={<div className="section-loading" />}>
+          <BacktesterView assets={assets} />
+        </Suspense>
       )}
 
       <ToastContainer toasts={toasts} />
