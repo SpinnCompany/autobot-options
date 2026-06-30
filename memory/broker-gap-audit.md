@@ -10,7 +10,7 @@ metadata:
 
 Real binary options broker platforms have sophisticated trading environments. This audit lists what AutobotOptions is missing, organized by implementation priority.
 
-**Status as of June 30, 2026: 38/46 complete (83%). All 15 known bugs resolved. Real WebSocket (#29) confirmed live — Binance 441 pairs streaming.**
+**Status as of June 30, 2026: 39/46 complete (85%). All 15 known bugs resolved. i18n live with 3 languages. Real WebSocket via Binance 441 pairs streaming. Code-split — main bundle 445KB (45% smaller).**
 
 Last verified: 2026-06-30 — complete codebase review.
 
@@ -52,7 +52,7 @@ Last verified: 2026-06-30 — complete codebase review.
 | 27 | Risk Management Tools | ✅ done | Daily loss limit, max position % of balance, max daily trades, min payout %, news event blocker (configurable impact levels). All in TradePanel Risk section + DemoEngine. |
 | 28 | Trade Journal / Notes | ✅ done | Notes on positions (inline input on cards). Dedicated JournalView page. HistoryView note editing. Search across journal entries. |
 
-## Complex (18 items — 12 DONE, 6 PENDING)
+## Complex (18 items — 13 DONE, 5 PENDING)
 
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
@@ -70,7 +70,7 @@ Last verified: 2026-06-30 — complete codebase review.
 | 40 | Custom Indicators | ✅ done | Add SMA/EMA/RSI overlays from Chart Settings. Configurable source/period/color. Persisted. |
 | 41 | Mobile Responsive Layout | ✅ done | 3 breakpoints: desktop (1024+), tablet (768-1024), mobile (≤767). Bottom bar. Overlay panels. |
 | 42 | Push Notifications | ✅ done | Browser Notification API. Trade result alerts. Toggle in Chart Settings. |
-| 43 | Multi-Language Support | ⬜ pending | i18n infrastructure needed. |
+| 43 | Multi-Language Support | ✅ done | i18next + react-i18next. 3 languages (English, Spanish, Arabic). Language switcher in SettingsModal with localStorage persistence. Browser auto-detection. ~300 strings across 25+ components. Canvas fillText via ref-based t(). |
 | 44 | Authentication & User Accounts | ⬜ pending | Requires backend + database. |
 | 45 | API Rate Limiting & Security | ⬜ pending | Production deployment concern. |
 | 46 | Real Broker Order Execution | ⬜ pending | Requires real WebSocket + backend engine. |
@@ -81,11 +81,11 @@ Last verified: 2026-06-30 — complete codebase review.
 |------|------|---------|-------|
 | Quick Wins | 10 | 0 | 10 |
 | Medium | 16 | 2 (deferred) | 18 |
-| Complex | 12 | 6 | 18 |
-| **Total** | **38** | **8** | **46** |
+| Complex | 13 | 5 | 18 |
+| **Total** | **39** | **7** | **46** |
 
-**Progress:** 38 of 46 complete (83%). 2 deferred (#25-26), 6 pending (all require backend infrastructure).
+**Progress:** 39 of 46 complete (85%). 2 deferred (#25-26), 5 pending (all require backend infrastructure).
 
-**Next priorities:** Multi-Language Support (#43) — the only remaining non-backend item. Then Account Types (#25), Deposit/Withdrawal (#26) when real account engine exists.
+**Next priorities:** All non-backend items complete. Account Types (#25), Deposit/Withdrawal (#26) when real account engine exists. Remaining 5 items all require production backend.
 
 **How to apply:** Each feature should be verified via the `trade-test` skill after implementation. See [[broker-integration-architecture]] for architecture context, [[broker-guidance-protocol]] for decision framework.

@@ -4,17 +4,16 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 ## ⚡ NEXT SESSION — Start Here
 
-**Session:** June 30, 2026 — All 15 known bugs resolved. 37/46 gap audit items complete (80%). 9 backend-dependent features remain deferred.
+**Session:** June 30, 2026 — All 15 known bugs resolved. 39/46 gap audit items complete (85%). i18n live (3 languages). Code-split (main bundle 445KB, 45% smaller). 7 backend-dependent features remain deferred.
 
 ### New This Session (June 30)
-- **6 bugs resolved** — all 15 known gotchas now FIXED (zero open bugs):
-  - #6: autobot_tabs persistence strips candle data (prevents localStorage bloat)
-  - #7: _persist uses correct slice direction (newest entries survive at capacity)
-  - #8: TP/SL updates lastTradeResult/lastTradeProfit (martingale/compounding correct)
-  - #13: Dual-source candle guard (tabs store source, name+source matching)
-  - #14: Binance get_symbols defers until exchangeInfo loaded (no empty race)
-  - #15: DerivFeed HTTPS guard (prevents Chrome PNA permission prompts)
-- **CLAUDE.md updated** — all bug tables marked FIXED with resolution locations
+- **All 15 known bugs resolved** — zero open bugs:
+  - #6-9, #13-15: 6 bugs fixed (persistence, TP/SL, HTTPS guards, dual-source, candle data)
+  - #1-5, #10-12: 9 bugs previously fixed (Chrome PNA, syncState, expiry, tick guard, icons, secrets)
+- **Code-split** — main bundle 809KB → 445KB (45% smaller). 7 secondary views lazy-loaded. recharts isolated to AnalyticsView chunk.
+- **i18n infrastructure** — i18next + react-i18next with 3 languages (EN/ES/AR). Language switcher in SettingsModal. ~300 strings across 25+ components. Canvas fillText via ref-based t().
+- **Gap audit** — #29 (Real WebSocket) + #43 (Multi-Language) marked DONE. 39/46 complete (85%).
+- **CLAUDE.md updated** — all bug tables marked FIXED, feature status updated.
 
 ### Architecture Decisions (ALL 10 RESOLVED ✅)
 1. Platform: Own broker, demo-only. Other brokers in ATS-Project desktop bot.
@@ -28,7 +27,7 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 9. Demo = Paper: Same thing. UI says "Demo Trading."
 10. Martingale/Compounding: Dual independent strategies, both with auto/manual modes.
 
-### Feature Status — 37/46 Gap Audit Items Complete (80%)
+### Feature Status — 39/46 Gap Audit Items Complete (85%)
 
 **Trading Engine (19 features)** — DemoEngine, PriceFeedEngine, TP/SL, Martingale, Compounding, Pending Orders, Rollover, Risk Mgmt (5 controls), Trade Journal, Keyboard Shortcuts, Daily P&L, Trade Confirmation, Quick Multipliers, Win Rate Per Asset, CSV Export, Sound Toggle, Position Timer Rings, Asset Quick Stats, Toast Duration, Account Reset
 
