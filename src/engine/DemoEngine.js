@@ -838,6 +838,11 @@ export function useDemoEngine({ onToast, onSound } = {}) {
 
   engine.onStateChange = syncState
 
+  // Sync React state with engine on mount — the engine loads from localStorage
+  // in its constructor, but React state starts with hardcoded defaults.
+  // Without this, balance shows $10k and positions appear empty on refresh.
+  useEffect(() => { syncState() }, [])
+
   // Keep callbacks fresh on every render — engine always calls latest version
   engine.onToast = onToast
   engine.onSound = onSound
