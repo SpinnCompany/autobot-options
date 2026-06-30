@@ -14,9 +14,10 @@ import BacktesterView from './components/BacktesterView'
 import { useSound } from './hooks/useSound'
 import { usePushNotifications } from './hooks/usePushNotifications'
 import { useMarketData } from './hooks/useMarketData'
-import { loadTradeHistory, TF_MAP } from './data/mockData'
+import { loadTradeHistory, TF_MAP, generateInitialAssets } from './data/mockData'
 import { getActiveEvents } from './data/economicCalendar'
 import { useDemoEngine, MAX_OPEN } from './engine/DemoEngine'
+import { PriceFeedEngine } from './engine/PriceFeedEngine'
 import { X, Plus, CandlestickChart, LayoutDashboard, History, Calendar, List, BookOpen, Grid3X3, Table2 } from 'lucide-react'
 
 const MAX_TABS = 8
@@ -27,10 +28,54 @@ export default function App() {
   })
   const [toasts, setToasts] = useState([])
 
-  // Assets: populated by Deriv on connect
+  // Assets: populated by Deriv on connect, or seeded from demo engine
   const [assets, setAssets] = useState([])
 
-  // Deriv feed is the sole data source — no simulation, no fallback
+  // Price feed engine — used when Deriv is unavailable (demo mode)
+  const priceFeedRef = useRef(null)
+
+  // Seed demo assets when Deriv doesn't connect within 2s
+  const demoSeededRef = useRef(false)
+  const [demoActive, setDemoActive] = useState(false)
+  useEffect(() => {
+    if (demoSeededRef.current) return
+    const timer = setTimeout(() => {
+      if (assets.length > 0) return  // Deriv already provided assets
+      demoSeededRef.current = true
+      const seed = generateInitialAssets()
+      if (!priceFeedRef.current) priceFeedRef.current = new PriceFeedEngine()
+      setAssets(seed)
+      setDemoActive(true)
+      // Open first asset as initial tab
+      if (tabsRef.current.length === 0 && seed.length > 0) {
+        const fa = seed[0]
+        const newTab = {
+          id: 'tab-1',
+          asset: fa.name,
+          priceHistory: [],
+          candleHistory: [],
+          timeframe: '1m',
+        }
+        setTabs([newTab])
+        setActiveTabId('tab-1')
+        seedDayHistory('tab-1', '1m', fa.price)
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [assets.length])
+
+  // Drive demo price updates every 500ms when in demo mode
+  useEffect(() => {
+    if (!demoActive || !priceFeedRef.current) return
+    const interval = setInterval(() => {
+      setAssets(prev => prev.map(a => {
+        const next = priceFeedRef.current.nextTick(a.price, a.volatility || 0.001, a.name)
+        const chg = a.price > 0 ? ((next - a.price) / a.price * 100) : 0
+        return { ...a, price: parseFloat(next.toFixed(5)), change: chg.toFixed(2) }
+      }))
+    }, 500)
+    return () => clearInterval(interval)
+  }, [demoActive])
 
   // ── Candle store — builds OHLC from every tick ──
   const candleStoreRef = useRef(new Map()) // tabId → Map<tf, candles[]>

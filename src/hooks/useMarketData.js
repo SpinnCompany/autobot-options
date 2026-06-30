@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { DerivFeed } from './feeds/DerivFeed'
 import { normalizeDerivSymbol } from '../data/derivMapping'
 
-const PROXY_URL = 'ws://localhost:8091'
+const PROXY_URL = import.meta.env.VITE_WS_URL || ''
 
 export function useMarketData({ onAssetTick, onCandles } = {}) {
   const [assets, setAssets] = useState([])
@@ -64,6 +64,7 @@ export function useMarketData({ onAssetTick, onCandles } = {}) {
 
   /** Fetch OHLC history via dedicated WebSocket. Response comes via onCandles callback. */
   const fetchCandles = useCallback((symbol, granularity, count = 200) => {
+    if (!PROXY_URL) return  // demo mode — no proxy available
     const ws = new WebSocket(PROXY_URL)
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'market:candles', symbol, granularity, count }))
