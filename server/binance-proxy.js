@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * binance-proxy.js — WebSocket proxy for Binance spot market data.
  *
@@ -12,7 +13,7 @@
  * Usage: node binance-proxy.js [port]
  */
 
-const { WebSocket, WebSocketServer } = require('ws');
+import { WebSocket, WebSocketServer } from 'ws';
 
 const PORT = parseInt(process.argv[2]) || 8092;
 const BINANCE_WS = 'wss://stream.binance.com:9443/ws';
