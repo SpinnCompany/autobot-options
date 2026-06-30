@@ -13,6 +13,7 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 - **AssetIcon component** — Binance CDN coin icons render as images in all panels
 - **Chrome PNA fix** — no more "access other apps and services" permission prompt
 - **Secret cleanup** — broker HTML snapshots removed from git history, .gitignore hardened
+- **Autonomous dev guide** — comprehensive CLAUDE.md with 15 known gotchas, 5 critical path flow diagrams with failure modes, step-by-step session start checklist, complete test commands for every subsystem, deploy commands for both proxies, full architecture diagram with dual-source data flow
 
 ### Architecture Decisions (ALL 10 RESOLVED ✅)
 1. Platform: Own broker, demo-only. Other brokers in ATS-Project desktop bot.
@@ -45,142 +46,385 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 ## Autonomous Dev — Session Start Checklist
 
-When starting a new session, run through these steps before making changes:
+When starting a new session, run through these steps BEFORE making any changes.
 
-### 1. Verify Environment (30 seconds)
+### Step 1: Read Key Files (NON-NEGOTIABLE)
+Read these files to understand current state before touching ANY code:
+- `src/App.jsx` — Full file (tick pipeline, tab management, asset merge, state persistence)
+- `src/engine/DemoEngine.js` — Full file (trading logic, TP/SL, expiry, persistence, state restore)
+- `src/hooks/feeds/BinanceFeed.js` or `DerivFeed.js` — If working on WS data path
+- `src/hooks/useBinanceData.js` or `useMarketData.js` — Price batching, settle guard
+- `server/binance-proxy.js` or `deriv-proxy.js` — If working on proxy layer
+
+### Step 2: Verify Environment
 ```bash
-# Check dev server
+# Dev server running?
 curl -s http://localhost:5173 > /dev/null && echo "Dev: UP" || echo "Dev: DOWN"
-# Check production
-curl -sk -o /dev/null -w "%{http_code}\n" https://options.autobotsignal.io/health
-# Check WebSocket proxies
-ssh gcp-vps@34.81.61.52 'docker ps --format "{{.Names}} {{.Status}}" | grep -E "binance|deriv|autobot"'
+# Build check
+npm run build                    # zero errors required — do this FIRST
+# Node modules installed?
+ls node_modules/.package-lock.json > /dev/null && echo "Deps: OK" || npm install
 ```
 
-### 2. Read Before Modify (NON-NEGOTIABLE)
+### Step 3: Test WebSocket Proxies (if changing data path)
+```bash
+# Check proxies are running locally
+lsof -i :8091 2>/dev/null | grep -q LISTEN && echo "deriv: UP" || echo "deriv: DOWN"
+lsof -i :8092 2>/dev/null | grep -q LISTEN && echo "binance: UP" || echo "binance: DOWN"
+
+# Quick WS connectivity test (each proxy)
+node -e "const ws=new (require('ws'))('ws://localhost:8092'); ws.on('open',()=>{ws.send(JSON.stringify({type:'get_symbols'}));}); ws.on('message',d=>{const m=JSON.parse(d.toString());if(m.type==='symbols'){console.log('Binance:',m.symbols.length,'symbols');ws.close();}}); setTimeout(()=>process.exit(1),5000);"
+
+# OR for Deriv:
+node -e "const ws=new (require('ws'))('ws://localhost:8091'); ws.on('open',()=>{ws.send(JSON.stringify({type:'get_symbols'}));}); ws.on('message',d=>{const m=JSON.parse(d.toString());if(m.type==='symbols'){console.log('Deriv:',m.symbols.length,'symbols');ws.close();}}); setTimeout(()=>process.exit(1),5000);"
+```
+
+### Step 4: Verify localStorage State (in browser console)
+```js
+// Check engine state
+JSON.parse(localStorage.getItem('autobot_engine_state'))
+// Expected: { balance, positions[], pendingOrders[], ... }
+
+// Check tabs state
+JSON.parse(localStorage.getItem('autobot_tabs'))
+// Expected: [{ id, asset, timeframe, candleHistory[], priceHistory[] }]
+
+// List all autobot keys
+Object.keys(localStorage).filter(k => k.startsWith('autobot_'))
+// Expected: 20+ keys
+```
+
+### Step 5: Verify Trade Engine Integrity
+```js
+// In browser console after placing a trade:
+const state = JSON.parse(localStorage.getItem('autobot_engine_state'))
+console.log('Balance:', state.balance)
+console.log('Open positions:', state.positions.filter(p => p.status === 'open').length)
+console.log('Expiry check:', state.positions.every(p => p.expiresAt > 0 || p.status !== 'open'))
+```
+
+### Step 6: Read Before Modify (NON-NEGOTIABLE)
 - Read the ENTIRE file before any edit
 - Check imports, exports, closing braces
 - Understand the data flow before touching code
 
-### 3. Test After Every Change
+### Step 7: Test After Every Change
 - `npm run build` — zero errors required
 - If Vite HMR caches stale exports: `touch src/App.jsx` to force re-evaluation
 - Write WHOLE files in ONE operation for Vite-served JSX
+- Check browser console for errors after page reload
 
-### 4. Deploy Checklist
+### Step 8: Deploy Checklist
 ```bash
-# Build check
+# 1. Build check
 npm run build
-# Commit
+# 2. Commit
 git add -A && git commit -m "fix: description"
-# Push
+# 3. Push
 git push origin main
-# Deploy SPA
+# 4. Deploy SPA
 ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options && git pull origin main && docker build --no-cache --build-arg VITE_WS_URL=wss://options.autobotsignal.io/ws/deriv --build-arg VITE_BINANCE_WS_URL=wss://options.autobotsignal.io/ws/binance -t autobot-options:latest . && docker stop autobot-options 2>/dev/null; docker rm autobot-options 2>/dev/null; docker run -d --name autobot-options --restart unless-stopped --network autobot-network -p 8095:80 autobot-options:latest'
-# Verify
+# 5. Verify
 ssh gcp-vps@34.81.61.52 'curl -sk -o /dev/null -w "%{http_code}\n" -H "Host: options.autobotsignal.io" https://127.0.0.1/'
 ```
 
 ## Critical Data Flows (with exact file:line references)
 
+Each flow below includes: (a) the data path, (b) failure modes, (c) verification steps.
+
 ### Flow 1: Tick → Chart Candle (the most fragile pipeline)
+
 ```
-WebSocket message arrives
-  → BinanceFeed._handle() [feeds/BinanceFeed.js:140]
-  → onTick(symbol, price, epoch)
-  → handleAssetTick() [App.jsx:77]
-    → Lookup asset by brokerSymbol/derivSymbol
-    → For each tab matching asset:
-      → Build/update OHLC candle in candleStoreRef [App.jsx:93-110]
-      → Store in candleStoreRef Map<tabId, Map<tf, candles[]>> [App.jsx:118]
-      → Flag key in tickSyncPendingRef [App.jsx:119]
-      → Schedule rAF flush [App.jsx:120]
+Binance WS message (24hrTicker)
+  → handleBinanceMsg() [server/binance-proxy.js:191-221]
+    → broadcast({type:'tick', symbol, price, epoch}) [line 205]
+  → BinanceFeed._handle() [feeds/BinanceFeed.js:158]
+    → onTick(symbol, price, epoch) [line 162]
+  → useBinanceData onTick callback [hooks/useBinanceData.js:46-55]
+    → onAssetTickRef.current(symbol, price) [line 48]
+    → Price batched to priceBufRef, flushed every 250ms [lines 51-55]
+  → handleAssetTick(symbol, price, 'binance') [App.jsx:83]
+    → Source-aware lookup: a.brokerSymbol === symbol [line 88]
+    → For each tab matching assetData.name [line 94-95]:
+      → Align time to timeframe boundary: alignedT [line 97]
+      → Build/update OHLC in candleStoreRef.get(tabId).get(timeframe) [lines 99-118]
+      → Flag in tickSyncPendingRef [line 119], schedule rAF [line 120-122]
   → rAF fires flushTickSyncs() [App.jsx:46]
-    → Read unique keys from tickSyncPendingRef [App.jsx:51]
-    → Read FRESH candles from candleStoreRef [App.jsx:60] ← NOT from pending map!
-    → setTabs() with updated candleHistory [App.jsx:56-66]
-  → CanvasChart reads tabs[n].candleHistory and renders
+    → Read keys from tickSyncPendingRef [line 51], CLEAR it [line 52]
+    → Read FRESH candles from candleStoreRef [line 59-60]
+    → setTabs() with candleHistory = [...candles] (new array) [lines 62-66]
+  → CanvasChart re-renders on reference identity change
+```
+
+**Failure modes:**
+- **Empty symbol list** (binance-proxy.js:321): Client connects before exchangeInfo fetch completes → gets `[]`, `settled=true` in useBinanceData line 58 → permanent empty state. Fix: proxy should not respond until exchangeInfo loaded, or useBinanceData should not set `settled=true` for empty lists.
+- **Race condition on merge**: handleCandles writes to candleStoreRef concurrently with handleAssetTick. flushTickSyncs reads the latest from candleStoreRef (not stale pending map) to avoid erasing history — this was a fixed bug.
+- **Dual-source corruption** (App.jsx:87-89, 94-95, 127-134): If both Binance and Deriv provide assets with the same display name (e.g. "Bitcoin"), both route into the same candleStoreRef[tabId][timeframe] entry. Candles alternate between two price feeds. Chart data corrupted silently.
+
+**Verification steps:**
+```bash
+# In browser console — check candles are flowing
+const tab = JSON.parse(localStorage.getItem('autobot_tabs'))[0]
+console.log('Candles:', tab.candleHistory.length, 'Price points:', tab.priceHistory.length)
+console.log('Last candle:', tab.candleHistory[tab.candleHistory.length - 1])
 ```
 
 ### Flow 2: History Fetch → Chart (background merge)
+
 ```
-Tab opened → handleOpenTab() [App.jsx:~570]
-  → fetchCandles(symbol, 60, 1440) [App.jsx:589]
-  → Binance WS → proxy → Binance REST /klines
-  → Response arrives: handleCandles() [App.jsx:122]
-    → Lookup asset, find matching tabs
-    → Read existing tick-built candles from candleStoreRef [App.jsx:135]
-    → Merge: fetched history + live ticks, dedup by time [App.jsx:136-140]
-    → Store merged in candleStoreRef [App.jsx:144]
-    → syncCandlesToTab() → setTabs() [App.jsx:145]
+Tab opened → handleAssetSelect(name) [App.jsx:566]
+  → Mark tab ready in historyReadyRef [lines 592-594]
+  → fetchCandles(brokerSymbol, 60, 1440) [App.jsx:598]
+  → Binance proxy receives 'market:candles' [server/binance-proxy.js:252]
+    → granularityToInterval(60) → '1m' [line 104-107]
+    → fetchKlines() via REST /api/v3/klines [line 255-256]
+    → Sends back {type:'candles',symbol,candles} [lines 257-262]
+  → BinanceFeed._handle() [feeds/BinanceFeed.js:171]
+    → Maps epoch→time*1000, open/high/low/close/v [lines 173-178]
+    → onCandles(symbol, mapped) [line 178]
+  → handleCandles(symbol, candles, 'binance') [App.jsx:127]
+    → Lookup asset by a.brokerSymbol === symbol [line 130]
+    → For each tab matching assetData.name [line 133-134]:
+      → Read existing tick-built candles from candleStoreRef [line 141]
+      → Merge: fetched + existing, dedup by time [lines 142-146]
+      → Cap at MAX_CANDLES (1440) [line 148]
+      → Store merged in candleStoreRef [line 150]
+      → syncCandlesToTab() → setTabs() [line 151]
+  → CanvasChart renders full candle history
 ```
 
-### Flow 3: Trade Lifecycle
+**Failure modes:**
+- **History never arrives**: If fetchCandles is called but handleCandles never fires, the chart shows only live tick-built candles (1+ per second). Check proxy logs for klines errors.
+- **Merge duplicates**: If time alignment is inconsistent (tick-built uses Math.floor, history uses Binance epoch), dedup by time may produce adjacent candles with the same timestamp.
+- **handleAssetTick guard blocks history**: Fixed bug — historyReadyRef guard was preventing ticks from rendering until history arrived. Now ticks build candles immediately and history merges into existing data.
+
+**Verification steps:**
+```bash
+# Direct candle fetch test
+node -e "
+const ws=require('ws');
+const w=new ws('ws://localhost:8092');
+w.on('open',()=>{w.send(JSON.stringify({type:'market:candles',symbol:'BTCUSDT',granularity:60,count:3}));});
+w.on('message',d=>{const m=JSON.parse(d.toString());if(m.type==='candles'){console.log('Candles:',m.candles?.length);w.close();}});
+setTimeout(()=>process.exit(1),10000);
+"
+# Expected: "Candles: 3"
+```
+
+### Flow 3: Trade Lifecycle (place → resolve → persist)
+
 ```
 User clicks CALL/PUT → TradePanel.handleTrade()
-  → DemoEngine.placeTrade() [engine/DemoEngine.js:72]
-    → Validate: amount, balance, risk limits, news block
-    → Create position, deduct balance
-    → _persist() → _saveState() → localStorage
-  → Every tick: checkTP_SL() [DemoEngine.js:~358] → checkExpiry() [DemoEngine.js:~428]
-    → _stampLastPrices() on each position [DemoEngine.js:~690]
-    → TP/SL hit: resolve, credit balance
-    → Expired: _resolvePosition() with price-driven outcome
-  → _persist() writes closed trades to autobot_options_history
+  → Delegate to App.handlePlaceTrade() [App.jsx:536]
+    → Resolve entryPrice from activeTab.priceHistory or assets [lines 538-541]
+    → engine.placeTrade() [DemoEngine.js:98]
+  → Validation [DemoEngine.js:99-193]:
+    → amount > 0 [line 103], amount ≤ balance [line 106]
+    → openCount < MAX_OPEN(5) [line 110]
+    → Daily trade limit [line 124], daily loss limit [line 130]
+    → Max position % of balance [line 136], min payout % [line 145]
+    → News event blocker [line 154], TP/SL direction check [line 172-191]
+  → Position created with absolute expiresAt [line 205]
+  → Balance deducted, position prepended [lines 216-217]
+  → _persist() writes engine state [line 223]
+  → Every tick: App.jsx useEffect [App.jsx:485-506]:
+    → Map assets to assetPrices [line 486]
+    → checkTP_SL() [DemoEngine.js:370] — stamps last prices, checks crosses
+      → TP hit → credit balance, mark win [lines 390-396]
+      → SL hit → mark loss [lines 398-403]
+      → WARNING: TP/SL does NOT update lastTradeResult/lastTradeProfit [BUG 1]
+    → checkExpiry() [DemoEngine.js:439] — compares Date.now() vs expiresAt
+      → Expired → _resolvePosition() with price-driven outcome [line 453]
+      → Price-driven: CALL wins if exitPrice > entryPrice [lines 648-650]
+      → 55% win rate NOT used here — outcome is market-driven! [outdated doc]
+    → checkPendingOrders() [DemoEngine.js:545] — price cross triggers execution
+    → checkAlerts() [DemoEngine.js:469] — price cross triggers notification
+  → _persist() writes history to autobot_options_history [lines 737]
+```
+
+**Failure modes:**
+- **TP/SL lastTradeResult/BUG**: TP/SL handler (DemoEngine.js:390-420) returns mapped objects but NEVER calls _resolvePosition. lastTradeResult, lastTradeProfit, and baseAmount are NOT updated. Martingale/compounding see stale data after a TP/SL close. Fix: either call _resolvePosition from checkTP_SL or duplicate the updates.
+- **_persist slice(-100) BUG** (DemoEngine.js:737): `merged.slice(-100)` keeps the LAST 100. Since new entries are PREPENDED, for `merged.length > 100`, OLD entries survive and the NEW entry at index 0 is dropped. Fix: use `.slice(0, 100)` or reverse the merge order.
+- **Completed candle close overwrite BUG** (App.jsx:108): `if (last) last.close = tickPrice` — when a new candle starts, the previous candle's close is overwritten with the first tick of the new period instead of the actual closing price. Fix: only close the candle when the next tick arrives for a different period.
+
+**Verification steps:**
+```js
+// In browser console — place trade, wait for expiry, verify
+const state = JSON.parse(localStorage.getItem('autobot_engine_state'))
+console.log('Balance:', state.balance)
+console.log('Positions:', state.positions.length)
+const history = JSON.parse(localStorage.getItem('autobot_options_history'))
+console.log('History entries:', history?.length)
 ```
 
 ### Flow 4: Page Refresh — State Restore
+
 ```
-Page loads → useDemoEngine() [DemoEngine.js:814]
-  → new DemoEngine() → constructor [DemoEngine.js:53]
-    → _loadState() reads autobot_engine_state [DemoEngine.js:772]
-    → Restore: balance, positions, pendingOrders, risk settings
-    → For expired positions (Date.now() >= expiresAt):
-      → _resolvePosition() with _lastPrice [DemoEngine.js:65]
-    → For alive positions: keep original expiresAt (no extension)
-  → useEffect → syncState() [DemoEngine.js:843]
-    → Mirror engine state into React state
-  → Tabs restored from autobot_tabs [App.jsx:206]
-  → Assets reload from Binance/Deriv feeds
+Page loads → App.jsx mounts
+  → useState for tabs reads autobot_tabs localStorage [App.jsx:224-228]
+  → useState for activeTabId reads autobot_active_tab [App.jsx:230-232]
+  → useDemoEngine() called [DemoEngine.js:814]
+    → new DemoEngine() constructor [DemoEngine.js:53]
+      → _loadState() reads autobot_engine_state [line 772]
+        → Restores: balance, positions, pendingOrders, risk settings
+      → For expired positions (now >= expiresAt) [line 66]:
+        → _resolvePosition with _lastPrice (stamped before page left) [line 68]
+        → _persist() saves resolved state [line 74]
+    → React state still = defaults ($10k balance, []) [lines 822-827]
+    → syncState() called via useEffect [line 844 = DemoEngine.js:843]
+      → setBalance(engine.balance), setPositions([...engine.positions])
+      → React state now matches localStorage
+  → useMarketData / useBinanceData connect WebSockets
+    → If reconnect finds saved subscription symbols, resubscribes
   → Ticks start flowing → candles build from scratch
+  → handleAssetTick [App.jsx:83] — no historyReadyRef guard (fixed bug #4)
+    → Ticks build candles immediately without waiting for history fetch
+  → After reconnect, history fetch may re-trigger for existing tabs
+    → handleCandles merges into candleStoreRef [App.jsx:142-146]
 ```
 
-### Flow 5: Asset Icon Rendering
+**Critical path** (the most common failure point):
 ```
-Asset data created → normalizeBinanceSymbol() [data/binanceMapping.js:23]
-  → icon = CDN URL (cryptocurrency-icons SVG)
-  → iconFallback = data URI (generated colored circle)
-AssetIcon component [components/AssetIcon.jsx]
-  → Binance: <img src={icon} onError={iconFallback} />
-  → Forex: flag emoji span
-  → Default: colored text badge
-Used in: ChartArea (header + tabs), TradePanel (header + position cards), AssetPanel
+useEffect(() => { syncState() }, [])  ← DemoEngine.js:844
+```
+If this useEffect doesn't fire (e.g., strict-mode double-mount or conditional rendering), React state stays at defaults ($10k, []), even though the DemoEngine instance correctly loaded from localStorage. The fix (bug #2) was adding this effect.
+
+**Verification steps:**
+```js
+// After page refresh — in browser console:
+const state = JSON.parse(localStorage.getItem('autobot_engine_state'))
+console.log('Stored balance:', state.balance)
+// Compare with UI balance display — should match
+// If UI shows $10k but stored balance is different → syncState() issue
 ```
 
-## Known Gotchas (bugs we've already fixed — don't reintroduce)
+### Flow 5: Asset Loading and Merge (Dual Source)
 
-| # | Bug | Symptom | Fix | Date |
-|---|-----|---------|-----|------|
-| 1 | **Chrome PNA prompt** | "access other apps and services" dialog | BinanceFeed skips localhost on HTTPS [BinanceFeed.js:19-24] | Jul 1 |
-| 2 | **syncState not called on mount** | Positions disappear on refresh, reappear after trade | useEffect → syncState() in useDemoEngine [DemoEngine.js:843] | Jul 1 |
-| 3 | **Position duration extended** | Refresh adds downtime to position time | Store absolute expiresAt, resolve expired on load [DemoEngine.js:53-68] | Jul 1 |
-| 4 | **Tick guard blocked restored tabs** | No chart ticks after refresh | Removed historyReadyRef guard from handleAssetTick [App.jsx:112-119] | Jul 1 |
-| 5 | **flushTickSyncs race condition** | History erased after merge | Read from candleStoreRef (not stale pending map) [App.jsx:46-66] | Jul 1 |
-| 6 | **Binance icons as text** | Raw CDN URLs shown instead of coin images | AssetIcon component handles all 3 icon types [AssetIcon.jsx] | Jul 1 |
-| 7 | **Secrets in git history** | Google API keys from scraped broker HTML | .gitignore excludes docs/broker-html-snapshots/ | Jul 1 |
-| 8 | **git add -A committed artifacts** | 229 files accidentally committed | .gitignore: .playwright-mcp/, screenshots/, .claude/settings.json | Jul 1 |
+```
+Page loads → useMarketData / useBinanceData mount
+  → Each creates its feed and connects [useBinanceData.js:74-80]
+  → onSymbols callback fires when symbols arrive [useBinanceData.js:57-63]
+    → setted=true guard prevents duplicate processing [line 58]
+    → normalizeBinanceSymbol() converts {symbol, display_name, baseAsset, ...}
+    → setAssets(normalized) with source='binance' [lines 60-61]
+    → Subscribe to all symbols for tick data [line 62]
+  → App.jsx useEffect [App.jsx:168] merges sources:
+    → Sources array = marketData.assets + binanceData.assets [lines 170-177]
+    → Dedup key = `${name}::${source}` [line 181]
+    → New assets added, existing assets updated if price changed [lines 183-191]
+    → Auto-opens first tab if none exist [lines 196-220]
+  → Asset prices updated by throttled (250ms) priceBuf flush [useBinanceData.js:19-39]
+    → Compares prev vs current price, only sets if changed [lines 29-37]
+```
+
+**Failure modes:**
+- **Empty symbols race** (binance-proxy.js:321 + useBinanceData.js:58): Browser connects before fetchExchangeInfo resolves. Proxy sends `{symbols: []}`. useBinanceData sets `settled=true`. When exchangeInfo resolves and real symbols arrive, `settled=true` blocks them. Fix: skip `settled=true` for empty arrays, or defer get_symbols response until exchangeInfo loads.
+- **Empty fallback** (BinanceFeed.js:19-24): If VITE_BINANCE_WS_URL is not set and page is HTTPS, getProxyUrl() returns null → feed silently skips connection. This prevents Chrome PNA prompts but means no Binance data in dev on HTTPS.
+
+**Verification steps:**
+```bash
+# Check proxy has loaded symbols
+ssh gcp-vps@34.81.61.52 'docker logs binance-proxy --tail 3'
+# Expected: "Fetched 441 USDT pairs from exchangeInfo"
+```
+
+## Known Gotchas — Every Bug We've Fixed (don't reintroduce)
+
+### Critical Bugs (will cause data loss or blank UI)
+
+| # | Bug | Root Cause | Symptom | Fix Location | Fixed |
+|---|-----|------------|---------|-------------|-------|
+| 1 | **Chrome PNA permission prompt** | HTTPS page connecting to ws://localhost triggers CORS + private network access | "access other apps and services" dialog spams user | BinanceFeed.getProxyUrl() [BinanceFeed.js:19-24] — returns null on HTTPS, silently skips | Jul 1 |
+| 2 | **syncState not called on mount** | React state initialized with defaults, engine loaded from localStorage, but no bridge between them | Positions disappear on refresh, reappear after next trade | useEffect(() => syncState(), []) in useDemoEngine [DemoEngine.js:844] | Jul 1 |
+| 3 | **Position duration extended on refresh** | Constructor recalculated expiresAt from `openTime + duration`, adding elapsed page-closed time to position | Positions stay open way longer than intended after page is revisited | Store absolute expiresAt, resolve expired in constructor [DemoEngine.js:53-68] | Jul 1 |
+| 4 | **Tick guard blocked restored tabs** | historyReadyRef guard prevented handleAssetTick from writing candles until history fetch completed | No chart ticks after refresh — chart stays "Waiting for market data" | Removed guard from handleAssetTick [App.jsx:112-119] | Jul 1 |
+| 5 | **flushTickSyncs race condition** | flushTickSyncs read from a stale snapshot stored in tickSyncPendingRef, while handleCandles had already merged new data into candleStoreRef | History erased after merge — chart shows only latest tick | Read from candleStoreRef, not from tickSyncPendingRef [App.jsx:46-66] | Jul 1 |
+
+### Persistence & State Bugs
+
+| # | Bug | Root Cause | Symptom | Fix | Fixed |
+|---|-----|------------|---------|-----|-------|
+| 6 | **autobot_tabs persists entire candle history** | useEffect [App.jsx:235] serializes full tabs array including candleHistory[] (up to 1440 OHLC objects) | localStorage quota could be hit, slow serialization on every tick | Compress or omit candleHistory from tabs persistence; reconstruct from engine on load | OPEN |
+| 7 | **_persist slice(-100) drops new entries at capacity** | `merged.slice(-100)` keeps last 100. New entries prepended, so at capacity old entries survive and new ones are lost | Recently closed trades disappear from history | Use `.slice(0, 100)` or reverse merge order [DemoEngine.js:737] | OPEN |
+| 8 | **TP/SL close doesn't update lastTradeResult** | checkTP_SL returns mapped objects directly — never calls _resolvePosition | Martingale/compounding see stale lastTradeResult after TP/SL close | Duplicate lastTradeResult/lastTradeProfit/baseAmount updates in each TP/SL branch [DemoEngine.js:390-420] | OPEN |
+| 9 | **Completed candle close overwritten** | `if (last) last.close = tickPrice` on new period — closes previous candle with first tick of NEXT period | Final close of completed candle is wrong | Only write close when next tick arrives for a new period [App.jsx:108] | OPEN |
+
+### Data & Rendering Bugs
+
+| # | Bug | Root Cause | Symptom | Fix | Fixed |
+|---|-----|------------|---------|-----|-------|
+| 10 | **Binance icons rendered as text** | Asset data stored raw CDN URL as string, no <img> tag | "https://cryptoicon-api.vercel.app/api/icon/..." shown in panels | AssetIcon component handles all 3 icon types with proper <img> rendering [AssetIcon.jsx] | Jul 1 |
+| 11 | **Secrets committed to git history** | docs/broker-html-snapshots/ contained scraped broker HTML with embedded Google API keys | Google API keys exposed in public repo | .gitignore excludes docs/broker-html-snapshots/ + cleanup of history | Jul 1 |
+| 12 | **git add -A committed artifacts** | Screenshots, Playwright MCP data, editor settings all in working tree | 229 files accidentally committed | .gitignore: .playwright-mcp/, screenshots/, .claude/settings.json | Jul 1 |
+| 13 | **Dual-source candle store corruption** | handleAssetTick matches tabs by `assetData.name`, both Deriv and Binance supply "Bitcoin" etc. | Same candleStoreRef[tabId][tf] receives interleaved ticks from BOTH sources | Key tabs by `name::source` composite, or ensure source is part of store lookup [App.jsx:94-95] | OPEN |
+
+### Proxy & Network Bugs
+
+| # | Bug | Root Cause | Symptom | Fix | Fixed |
+|---|-----|------------|---------|-----|-------|
+| 14 | **Binance empty symbols race** | binance-proxy.js starts WSS before fetchExchangeInfo completes. Client sends get_symbols, gets [] | Asset panel permanently empty — settled=true blocks retry | Defer get_symbols response until exchangeInfo loaded, or don't set settled=true for empty [binance-proxy.js:321 + useBinanceData.js:58] | OPEN |
+| 15 | **DerivFeed missing HTTPS guard** | Falls back to `ws://localhost:8091` on HTTPS, triggering mixed-content block + PNA | Connection never established, no errors shown | Add same getProxyUrl() pattern as BinanceFeed [DerivFeed.js:14] | OPEN |
 
 ## Test Commands (copy-paste to verify each subsystem)
 
+### Build & Dev Server
 ```bash
 # 1. Build check
-npm run build                                    # zero errors required
+npm run build                                # zero errors required — do this ALWAYS
 
-# 2. WebSocket — Binance proxy
-ssh gcp-vps@34.81.61.52 'docker logs binance-proxy --tail 3'
-# Expected: "Fetched 441 USDT pairs" + "Connected to Binance WS"
+# 2. Dev server health
+curl -s http://localhost:5173 | head -5      # Should return HTML
 
-# 3. WebSocket — full path test
+# 3. Vite HMR cache fix (when "does not provide export" appears)
+touch src/App.jsx                            # Force re-evaluation
+```
+
+### WebSocket Proxies — Local
+```bash
+# 4. Derive proxy running?
+lsof -i :8091 2>/dev/null | grep -q LISTEN && echo "deriv: local:UP" || echo "deriv: local:DOWN"
+
+# 5. Binance proxy running?
+lsof -i :8092 2>/dev/null | grep -q LISTEN && echo "binance: local:UP" || echo "binance: local:DOWN"
+
+# 6. Derive proxy symbol fetch
+node -e "
+const ws=require('ws');
+const w=new ws('ws://localhost:8091');
+w.on('open',()=>{ws.send(JSON.stringify({type:'get_symbols'}));});
+w.on('message',d=>{const m=JSON.parse(d.toString());if(m.type==='symbols'){console.log('Symbols:',m.symbols.length);w.close();}});
+setTimeout(()=>process.exit(1),5000);
+"
+# Expected: "Symbols: >0"
+
+# 7. Binance proxy symbol fetch
+node -e "
+const ws=require('ws');
+const w=new ws('ws://localhost:8092');
+w.on('open',()=>{w.send(JSON.stringify({type:'get_symbols'}));});
+w.on('message',d=>{const m=JSON.parse(d.toString());if(m.type==='symbols'){console.log('Symbols:',m.symbols.length);w.close();}});
+setTimeout(()=>process.exit(1),5000);
+"
+# Expected: "Symbols: 441"
+
+# 8. Candle fetch — Binance
+node -e "
+const ws=require('ws');
+const w=new ws('ws://localhost:8092');
+w.on('open',()=>{w.send(JSON.stringify({type:'market:candles',symbol:'BTCUSDT',granularity:60,count:3}));});
+w.on('message',d=>{const m=JSON.parse(d.toString());if(m.type==='candles'){console.log('Candles:',m.candles?.length);w.close();}});
+setTimeout(()=>process.exit(1),10000);
+"
+# Expected: "Candles: 3"
+```
+
+### Production Verification
+```bash
+# 9. Production health
+curl -sk -o /dev/null -w "%{http_code}\n" https://options.autobotsignal.io/health
+# Expected: 200
+
+# 10. Production WS — symbols
 ssh gcp-vps@34.81.61.52 'cd /tmp && node -e "
 const ws=require(\"/tmp/node_modules/ws\");
 const w=new ws(\"wss://options.autobotsignal.io/ws/binance\");
@@ -190,7 +434,7 @@ setTimeout(()=>process.exit(1),5000);
 "'
 # Expected: "441 symbols"
 
-# 4. Candle fetch test
+# 11. Production WS — candles
 ssh gcp-vps@34.81.61.52 'cd /tmp && node -e "
 const ws=require(\"/tmp/node_modules/ws\");
 const w=new ws(\"wss://options.autobotsignal.io/ws/binance\");
@@ -200,71 +444,143 @@ setTimeout(()=>process.exit(1),10000);
 "'
 # Expected: "Candles: 3"
 
-# 5. Production health
-curl -sk -o /dev/null -w "%{http_code}\n" https://options.autobotsignal.io/health
-# Expected: 200
+# 12. Production Docker status
+ssh gcp-vps@34.81.61.52 'docker ps --format "{{.Names}} {{.Status}}" | grep -E "binance|deriv|autobot"'
+# Expected: 3 containers running
 
-# 6. localStorage persistence (in browser console)
-Object.keys(localStorage).filter(k=>k.startsWith('autobot_'))
-# Expected: 20+ keys including autobot_engine_state, autobot_tabs, etc.
+# 13. Production — verify WS URL baked into bundle
+ssh gcp-vps@34.81.61.52 'docker exec autobot-options grep -c options.autobotsignal.io /usr/share/nginx/html/assets/index-*.js'
+# Expected: >0
 ```
 
-## Production Architecture
+### Trade Engine Tests
+```bash
+# 14. In browser console — place trade, verify persistence
+# Execute these one at a time:
+#   document.querySelector('[data-testid="call-btn"]')?.click()
+#   JSON.parse(localStorage.getItem('autobot_engine_state')).balance
+#   JSON.parse(localStorage.getItem('autobot_engine_state')).positions.length
 
-```
-GCP Server (34.81.61.52)
-  ├─ nginx (host, :80/:443, TLS via Let's Encrypt)
-  │   ├─ /          → autobot-options:8095 (SPA)
-  │   ├─ /ws/deriv  → deriv-proxy:8096 (WebSocket)
-  │   └─ /ws/binance→ binance-proxy:8097 (WebSocket)
-  ├─ autobot-options  — nginx:alpine + Vite SPA
-  ├─ deriv-proxy      — Node.js WS proxy → Deriv API (wss://ws.derivws.com)
-  └─ binance-proxy    — Node.js WS proxy → Binance (wss://stream.binance.com:9443)
-                         441 USDT pairs via exchangeInfo, klines via REST API
+# 15. localStorage key count
+# In browser console:
+#   Object.keys(localStorage).filter(k=>k.startsWith('autobot_')).length
+# Expected: 20+
 
-Port map (avoiding conflicts):
-  8091 = phpMyAdmin (DO NOT USE)
-  8092 = autobot-admin
-  8095 = autobot-options SPA
-  8096 = deriv-proxy (internal: 8091)
-  8097 = binance-proxy (internal: 8092)
+# 16. Refresh resilience
+# Place a trade → refresh page → check open positions still appear
 ```
 
-## localStorage Key Reference
+### Candle Pipeline Test
+```bash
+# In browser console — check candles are flowing:
+setInterval(() => {
+  const tabs = JSON.parse(localStorage.getItem('autobot_tabs'))
+  const tab = tabs[0]
+  console.log('Candles:', tab?.candleHistory?.length || 0, ' Last price:', tab?.priceHistory?.[tab.priceHistory.length-1]?.price)
+}, 2000)
+# Expected: candle count increases every ~1 second
+```
 
-| Key | Source | Content |
-|-----|--------|---------|
-| `autobot_engine_state` | DemoEngine | balance, positions[], pendingOrders[], all risk settings |
-| `autobot_options_history` | DemoEngine | Closed trades (max 100), used by HistoryView |
-| `autobot_tabs` | App.jsx | Chart tabs array [{id, asset, timeframe, candleHistory}] |
-| `autobot_active_tab` | App.jsx | Active tab ID string |
-| `autobot_chart_prefs` | ChartArea | chartType, indicators, overlays, periods |
-| `autobot_custom_inds` | ChartArea | Custom indicators array |
-| `autobot_alerts` | App.jsx | Price alerts array |
-| `autobot_trade_*` | TradePanel | amount, duration, tp, sl |
-| `autobot_mg_*` | TradePanel | Martingale: enabled, auto, multiplier, steps |
-| `autobot_da_*` | TradePanel | D'Alembert: enabled, auto, unit, stake |
-| `autobot_cp_*` | TradePanel | Compounding: enabled, auto, pct, steps |
-| `autobot_backtest` | BacktesterView | All strategy params (JSON) |
-| `autobot_asset_*` | AssetPanel | search, category filter |
-| `autobot_hist_*` | HistoryView | search, filter, sort |
-| `autobot_ecal_filter` | EconomicCalendar | Impact filter |
-| `autobot_sound_muted` | App.jsx | Boolean string |
-| `autobot_push_enabled` | usePushNotifications | Boolean string |
-| `pit_zoom_v2` | CanvasChart | Per-chart zoom level |
-| `blg_drawing_lines` | CanvasChart | Drawing lines array |
+## Production Architecture — Full Data Flow
 
-## Quick Fixes Reference
+```
+                               ┌─────────────────────────────────────────────┐
+                               │              GCP Server (34.81.61.52)       │
+                               │                                             │
+  Binance API                  │   ┌──────────────┐  ┌──────────────┐       │
+  (wss://stream.binance.com:9443) │ │ binance-proxy │  │  deriv-proxy │       │
+       ↕  REST /klines        │   │  (:8092)       │  │  (:8091)     │       │
+       ↕  WS tickers          │   │  Node.js WS    │  │  Node.js WS  │       │
+                               │   └──────┬───────┘  └──────┬───────┘       │
+                               │          │                  │              │
+  Derive API                   │          │  Internal        │              │
+  (wss://ws.derivws.com)       │          │  Docker network  │              │
+       ↕                       │          │                  │              │
+                               │   ┌──────┴──────────────────┴───────┐      │
+                               │   │        nginx (host, :443)        │      │
+                               │   │  TLS via Let's Encrypt           │      │
+                               │   │                                  │      │
+                               │   │  /              → :8095 (SPA)    │      │
+                               │   │  /ws/binance    → binance-proxy  │      │
+                               │   │  /ws/deriv      → deriv-proxy    │      │
+                               │   └──────────────┬───────────────────┘      │
+                               └──────────────────┼──────────────────────────┘
+                                                  │
+                               wss://options.autobotsignal.io
+                                                  │
+                               ┌──────────────────┴───────────────────┐
+                               │           Browser (SPA)              │
+                               │                                      │
+                               │  BinanceFeed ← wss://.../ws/binance  │
+                               │    → useBinanceData hook             │
+                               │      → handleAssetTick('binance')    │
+                               │                                      │
+                               │  DerivFeed ← wss://.../ws/deriv      │
+                               │    → useMarketData hook              │
+                               │      → handleAssetTick('deriv')      │
+                               │                                      │
+                               │  App.jsx — candleStoreRef            │
+                               │    → flushTickSyncs (rAF batched)    │
+                               │    → setTabs → ChartArea             │
+                               │      → CanvasChart renders           │
+                               │                                      │
+                               │  DemoEngine — trading core           │
+                               │    → positions, TP/SL, expiry        │
+                               │    → localStorage (persistence)      │
+                               └──────────────────────────────────────┘
 
-| Problem | Fix |
-|---------|-----|
-| Positions gone after refresh | Check `autobot_engine_state` in localStorage. If missing, `syncState()` might not be called — verify `useEffect(() => { syncState() }, [])` in DemoEngine hook. |
-| Chart blank, no ticks | Check browser console for WS errors. Verify binance-proxy is running: `docker logs binance-proxy`. Check `candleStoreRef` — should build candles from tick 1. |
-| History not loading | Check that `handleCandles` is called (add console.log). Verify `fetchCandles` sends correct granularity (60 for 1m). Check binance-proxy klines response. |
-| Icons showing as text | Verify AssetIcon component is imported. Check `asset.source === 'binance'` branch in AssetIcon. |
-| Balance resets to $10k | `_loadState()` might be failing. Check localStorage `autobot_engine_state` is valid JSON. |
-| Container won't start | Port conflict: check `docker ps` for port usage. 8091=phpMyAdmin, 8092=autobot-admin. |
-| Vite "does not provide an export" | `touch src/App.jsx` to force Vite re-evaluation. Do NOT keep editing — it's a Vite cache issue. |
+Port map (AVOID CONFLICTS):
+  8091 = phpMyAdmin (DO NOT USE — reserved!)
+  8092 = autobot-admin (DO NOT USE — reserved!)
+  8095 = autobot-options SPA (nginx:alpine container)
+  8096 = deriv-proxy (internal:8091, host:8096)
+  8097 = binance-proxy (internal:8092, host:8097)
+```
+
+## localStorage Key Reference — Complete
+
+| Key | Source | Content | Size Warning |
+|-----|--------|---------|-------------|
+| `autobot_engine_state` | DemoEngine | balance, positions[], pendingOrders[], all risk settings | ~1-5 KB |
+| `autobot_options_history` | DemoEngine | Closed trades (max 100, slice(-100) BUG), used by HistoryView | ~10-100 KB |
+| `autobot_tabs` | App.jsx | Chart tabs array with candleHistory[] (1440 OHLC each) | **LARGE** (~500 KB+) — persisted on every change! |
+| `autobot_active_tab` | App.jsx | Active tab ID string | ~10 B |
+| `autobot_chart_prefs` | ChartArea | chartType, indicators, overlays, periods | ~1 KB |
+| `autobot_custom_inds` | ChartArea | Custom indicators array | ~1 KB |
+| `autobot_alerts` | App.jsx | Price alerts array | ~1 KB |
+| `autobot_trade_*` | TradePanel | amount, duration, tp, sl | ~100 B |
+| `autobot_mg_*` | TradePanel | Martingale: enabled, auto, multiplier, steps | ~200 B |
+| `autobot_da_*` | TradePanel | D'Alembert: enabled, auto, unit, stake | ~200 B |
+| `autobot_cp_*` | TradePanel | Compounding: enabled, auto, pct, steps | ~200 B |
+| `autobot_backtest` | BacktesterView | All strategy params (JSON) | ~1 KB |
+| `autobot_asset_*` | AssetPanel | search, category filter | ~100 B |
+| `autobot_hist_*` | HistoryView | search, filter, sort | ~100 B |
+| `autobot_ecal_filter` | EconomicCalendar | Impact filter | ~50 B |
+| `autobot_sound_muted` | App.jsx | Boolean string | ~10 B |
+| `autobot_push_enabled` | usePushNotifications | Boolean string | ~10 B |
+| `pit_zoom_v2` | CanvasChart | Per-chart zoom level | ~100 B |
+| `blg_drawing_lines` | CanvasChart | Drawing lines array | ~10 KB |
+
+**Key insight**: `autobot_tabs` (persisted on every tab change via useEffect) contains the entire `candleHistory` and `priceHistory` arrays for every tab. At 1440 OHLC records * 8 tabs = 11,520 records, this can exceed localStorage's 5-10 MB limit. Consider stripping candle data before persisting.
+
+## Quick Fixes Reference — Diagnosis and Solution
+
+| Symptom | Most Likely Cause | Fix | File:Line |
+|---------|------------------|-----|-----------|
+| Positions gone after refresh | syncState() useEffect not firing | Check `useEffect(() => { syncState() }, [])` exists in useDemoEngine | DemoEngine.js:844 |
+| Chart blank, no ticks | Binance proxy not running or empty symbols race | `docker logs binance-proxy` — check for "Fetched 441 USDT pairs". If 0, proxy started before exchangeInfo loaded. | binance-proxy.js:321 |
+| Chart shows 1 candle then stops | History fetch worked but ticks not building | Check handleAssetTick is called (add console.log). Verify asset lookup: `a.brokerSymbol === symbol` may fail if field names differ. | App.jsx:87-89 |
+| History not loading | handleCandles never called | Check fetchCandles sends correct granularity (60 for 1m). Check binance-proxy klines response for errors. | App.jsx:127 |
+| Icons showing as raw URLs | AssetIcon not rendering <img> tag | Verify `asset.source === 'binance'` branch. Check normalizeBinanceSymbol sets `icon` field. | AssetIcon.jsx |
+| Balance resets to $10k on refresh | _loadState() failing or syncState() not called | Check `autobot_engine_state` localStorage is valid JSON. Try `JSON.parse(localStorage.getItem('autobot_engine_state'))`. | DemoEngine.js:772 |
+| "Does not provide an export" from Vite | Vite HMR cached stale module exports | `touch src/App.jsx` to force re-evaluation. Do NOT keep editing — it's Vite's cache, not the source. Reset dev server if persists. | — |
+| Container won't start on GCP | Port conflict with existing container | `docker ps` to check port usage. 8091=phpMyAdmin, 8092=autobot-admin — never use these. | — |
+| TP/SL not triggering | checkTP_SL not receiving price updates | Check assetPrices Map has the position's asset: `assetPrices.get(p.asset)`. Verify asset name matches exactly. | DemoEngine.js:383 |
+| Martingale bet wrong amount | lastTradeResult not updated after TP/SL close | TP/SL handler doesn't call _resolvePosition. lastTradeResult is stale. Fix: update lastTradeResult/lastTradeProfit in TP/SL branches. | DemoEngine.js:390-420 |
+| Price updates flood (too many re-renders) | 250ms price batching not working | Check priceBufRef flush in useBinanceData. Each tick from 441 pairs triggers setAssets if flush is bypassed. | useBinanceData.js:19-39 |
+| Trade history shows wrong entries | _persist slice(-100) drops new entries at capacity | `merged.slice(-100)` keeps last 100 but new entries are prepended. Fix: use `.slice(0, 100)`. | DemoEngine.js:737 |
+| Completed candle has wrong close | Candles stick to next period's first tick | `if (last) last.close = tickPrice` closes previous candle with first tick of new period. Fix: write close only on next tick with different time. | App.jsx:108 |
+| Tab shows "Waiting for market data" | No ticks reaching candleStoreRef, or history never loaded | Check WS connection. Check handleAssetTick fires. Check candleStoreRef contents. | App.jsx:112-119 |
 
 ```
 autobot-options/
@@ -425,10 +741,12 @@ autobot-options/
 
 ### Real Data Only — No Simulation Fallbacks
 - This is a REAL trading platform — never generate fake prices, candles, or asset data
-- Chart shows "Waiting for market data…" when Deriv proxy is unavailable — do NOT seed mock data
-- All price updates come exclusively from the Deriv WebSocket proxy (`deriv-proxy.js`)
+- Chart shows "Waiting for market data…" when both proxies are unavailable — do NOT seed mock data
+- All price updates come from the WebSocket proxies: `deriv-proxy.js` (Deriv) and `binance-proxy.js` (Binance)
+- DemoEngine generates trade outcomes (win/loss) based on real price movement — NOT random
 - `generateCandleHistory()` and `generateInitialAssets()` exist for backtesting ONLY — never wire them into the live data path
-- When adding features, always use real Deriv data paths (`onDerivAssetTick`, `onDerivCandles`, `marketData.fetchCandles`)
+- When adding features, route through source-aware callbacks: `handleAssetTick(symbol, price, source)` and `handleCandles(symbol, candles, source)` where source is `'deriv'` or `'binance'`
+- Asset lookup is source-aware: use `a.brokerSymbol` for Binance, `a.derivSymbol` for Deriv
 
 ### Code Standards
 - 2-space indentation, single quotes, trailing commas
@@ -442,42 +760,58 @@ autobot-options/
 ### WebSocket Testing — Real Data Only, No Assumptions
 - **NEVER assume a WebSocket connection works** — test every connection with real data before committing
 - Test procedure for any WS change:
-  1. Verify deriv-proxy is running: `lsof -i :8091`
-  2. Send a real request and inspect the response: `node -e "const ws=new (require('ws'))('ws://localhost:8091'); ws.on('open',()=>ws.send(JSON.stringify({type:'market:candles',symbol:'R_50',granularity:60,count:5}))); ws.on('message',d=>console.log(JSON.parse(d.toString())));"`
+  1. Verify proxy is running: `lsof -i :8092` (Binance) or `lsof -i :8091` (Deriv)
+  2. Send a real request and inspect the response:
+     ```bash
+     # Binance
+     node -e "const ws=new (require('ws'))('ws://localhost:8092'); ws.on('open',()=>ws.send(JSON.stringify({type:'market:candles',symbol:'BTCUSDT',granularity:60,count:5}))); ws.on('message',d=>console.log(JSON.parse(d.toString())));"
+     # Derive
+     node -e "const ws=new (require('ws'))('ws://localhost:8091'); ws.on('open',()=>ws.send(JSON.stringify({type:'market:candles',symbol:'R_50',granularity:60,count:5}))); ws.on('message',d=>console.log(JSON.parse(d.toString())));"
+     ```
   3. Confirm response structure matches what downstream code expects (type, symbol, candles[].epoch/open/high/low/close)
   4. Run `npm run build` — zero errors required
-- When Deriv returns new message types (like `auto_list_strategies`), study the response structure BEFORE writing code to consume it
-- All data paths must be traceable end-to-end: Deriv WS → proxy → DerivFeed → useMarketData → App → ChartArea → CanvasChart
+- When a proxy returns new message types, study the response structure BEFORE writing code to consume it
+- All data paths must be traceable end-to-end (two sources):
+  - Binance: WS → binance-proxy → BinanceFeed → useBinanceData → App → ChartArea → CanvasChart
+  - Derive: WS → deriv-proxy → DerivFeed → useMarketData → App → ChartArea → CanvasChart
 - If data isn't rendering, trace each layer with the browser console before touching code
 
 ## Deployment Rules (NON-NEGOTIABLE)
 
-### Production Architecture
+### Production Architecture (current)
 
 ```
 GCP Server (34.81.61.52)
-  ├─ nginx (host, :80/:443)
-  │   ├─ /      → autobot-options Docker :8095 (SPA)
-  │   └─ /ws    → deriv-proxy Docker :8096 (WebSocket)
-  ├─ autobot-options  — Vite SPA served by nginx:alpine
-  └─ deriv-proxy      — Node.js WS proxy → Deriv API (wss://ws.derivws.com)
+  ├─ nginx (host, :80/:443, TLS via Let's Encrypt)
+  │   ├─ /           → autobot-options Docker :8095 (SPA)
+  │   ├─ /ws/deriv   → deriv-proxy Docker :8096 (Internal port 8091)
+  │   └─ /ws/binance → binance-proxy Docker :8097 (Internal port 8092)
+  ├─ autobot-options  — nginx:alpine + Vite SPA (port 8095)
+  ├─ deriv-proxy      — Node.js WS proxy → Deriv (wss://ws.derivws.com)  (port 8096)
+  └─ binance-proxy    — Node.js WS proxy → Binance (wss://stream.binance.com:9443)  (port 8097)
+                        441 USDT pairs, exchangeInfo-driven, klines via REST
 ```
 
 - **Domain:** options.autobotsignal.io (Let's Encrypt SSL, auto-renew)
 - **Repo:** github.com/SpinnCompany/autobot-options
 - **Deploy:** `git push` → SSH to GCP → `git pull` → `docker build` → `docker run`
-- **SPA build arg:** `VITE_WS_URL=wss://options.autobotsignal.io/ws` (REQUIRED for production)
+- **SPA build args (BOTH required for production):**
+  - `VITE_WS_URL=wss://options.autobotsignal.io/ws/deriv` (Deriv proxy)
+  - `VITE_BINANCE_WS_URL=wss://options.autobotsignal.io/ws/binance` (Binance proxy)
 - **Docker --no-cache:** Required when changing build args (Vite bakes them at build time)
+- **Port conflicts to avoid:**
+  - 8091 = phpMyAdmin (DO NOT USE)
+  - 8092 = autobot-admin (DO NOT USE)
 
 ### NEVER — Deployment Anti-Patterns
 
-1. **NEVER add simulation/demo fallback code.** If the deriv-proxy isn't reachable, DEPLOY THE PROXY. Do not seed fake assets, simulated prices, or mock candles. The app shows "Waiting for market data…" until real Deriv data arrives.
-2. **NEVER deploy without deriv-proxy running.** The SPA depends on the proxy for ALL data. Without it the terminal is blank.
-3. **NEVER use cached Docker builds when changing VITE_WS_URL.** Force `--no-cache` or the old URL stays in the bundle.
-4. **NEVER hardcode WebSocket URLs.** Use `VITE_WS_URL` env var (dev default: `ws://localhost:8091`).
-5. **Port 8091 is phpMyAdmin** — deriv-proxy uses internal port 8091 mapped to host port 8096.
+1. **NEVER add simulation/demo fallback code.** If a proxy isn't reachable, DEPLOY THE PROXY. Do not seed fake assets, simulated prices, or mock candles. The app shows "Waiting for market data..." until real data arrives.
+2. **NEVER deploy without BOTH proxies running.** The SPA depends on both deriv-proxy AND binance-proxy. Without them the terminal is blank.
+3. **NEVER use cached Docker builds when changing VITE_WS_URL or VITE_BINANCE_WS_URL.** Force `--no-cache` or the old URL stays in the bundle.
+4. **NEVER hardcode WebSocket URLs.** Use `VITE_WS_URL` and `VITE_BINANCE_WS_URL` env vars.
+5. **Port 8091 is phpMyAdmin, 8092 is autobot-admin** — never use them.
 
-### Deploy Checklist
+### Deploy Checklist (full)
 
 ```bash
 # 1. Push code
@@ -489,26 +823,27 @@ ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options && git pull origin mai
 # 3. Rebuild deriv-proxy (if server/ changed)
 ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options/server && docker build -t deriv-proxy:latest . && docker stop deriv-proxy && docker rm deriv-proxy && docker run -d --name deriv-proxy --restart unless-stopped --network autobot-network -p 127.0.0.1:8096:8091 deriv-proxy:latest'
 
-# 4. Rebuild SPA with production WS URL
-ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options && docker build --no-cache --build-arg VITE_WS_URL=wss://options.autobotsignal.io/ws -t autobot-options:latest . && docker stop autobot-options && docker rm autobot-options && docker run -d --name autobot-options --restart unless-stopped --network autobot-network -p 8095:80 autobot-options:latest'
+# 4. Rebuild binance-proxy (if server/ changed)
+ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options/server && docker build -f Dockerfile.binance -t binance-proxy:latest . && docker stop binance-proxy && docker rm binance-proxy && docker run -d --name binance-proxy --restart unless-stopped --network autobot-network -p 127.0.0.1:8097:8092 binance-proxy:latest'
 
-# 5. Verify
+# 5. Rebuild SPA with BOTH production WS URLs
+ssh gcp-vps@34.81.61.52 'cd /home/gcp-vps/autobot-options && docker build --no-cache --build-arg VITE_WS_URL=wss://options.autobotsignal.io/ws/deriv --build-arg VITE_BINANCE_WS_URL=wss://options.autobotsignal.io/ws/binance -t autobot-options:latest . && docker stop autobot-options && docker rm autobot-options && docker run -d --name autobot-options --restart unless-stopped --network autobot-network -p 8095:80 autobot-options:latest'
+
+# 6. Verify
 curl -sk -o /dev/null -w '%{http_code}' https://options.autobotsignal.io/health  # → 200
 ssh gcp-vps@34.81.61.52 'docker logs deriv-proxy --tail 3'  # → "Deriv connected"
-ssh gcp-vps@34.81.61.52 'docker exec autobot-options grep -c options.autobotsignal.io /usr/share/nginx/html/assets/index-*.js'  # → >0
-```
+ssh gcp-vps@34.81.61.52 'docker logs binance-proxy --tail 3'  # → "Fetched 441" + "Connected to Binance WS"
+ssh gcp-vps@34.81.61.52 'docker exec autobot-options sh -c "grep -l options.autobotsignal.io /usr/share/nginx/html/assets/index-*.js"'  # → prints matched filenames
 
-### Data Flow (production)
-
-```
-Deriv API (wss://ws.derivws.com)
-    ↕
-deriv-proxy.js (Docker, 127.0.0.1:8096)
-    ↕  wss://options.autobotsignal.io/ws (nginx TLS termination)
-    ↕
-Browser (DerivFeed → useMarketData → App.jsx)
-    ├─ onDerivAssetTick → setAssets (asset panel prices)
-    └─ onDerivCandles → syncCandlesToTab (chart OHLC)
+# 7. Smoke test — production WS
+ssh gcp-vps@34.81.61.52 'cd /tmp && node -e "
+const ws=require(\"/tmp/node_modules/ws\");
+const w=new ws(\"wss://options.autobotsignal.io/ws/binance\");
+w.on(\"open\",()=>{w.send(JSON.stringify({type:\"get_symbols\"}));});
+w.on(\"message\",d=>{const m=JSON.parse(d.toString());if(m.type===\"symbols\"){console.log(m.symbols.length+\" symbols\");w.close();}});
+setTimeout(()=>process.exit(1),5000);
+"'
+# Expected: "441 symbols"
 ```
 
 ## Trade Execution Rules (Trading System Safety)
@@ -527,13 +862,23 @@ User clicks CALL/PUT → TradePanel.handleTrade()
   → Risk checks: daily loss limit, max position %, max daily trades,
                  min payout %, news event blocker
   → Validation: TP/SL direction relative to CALL/PUT
-  → DemoEngine.placeTrade() deducts balance, creates position
-  → setTimeout fires after duration seconds → _resolvePosition()
-  → 55% win rate, configurable payout (82% default)
-  → TP/SL checked every 500ms tick → auto-close on cross
-  → Pending orders checked every tick → auto-execute on cross
-  → Saves to localStorage trade history (last 100)
+  → DemoEngine.placeTrade() deducts balance, creates position with
+    absolute expiresAt (openTime + duration * 1000)
+  → Every tick (via App.jsx useEffect [App.jsx:485-506]):
+    → (1) checkTP_SL() — stamps last prices, checks crosses
+    → (2) checkExpiry() — compares Date.now() vs expiresAt
+    → (3) checkPendingOrders() — price cross triggers execution
+    → (4) checkAlerts() — price cross triggers notification
+  → checkExpiry → _resolvePosition() with PRICE-DRIVEN outcome:
+    CALL wins if exitPrice > entryPrice (NOT random 55%)
+  → TP/SL: maps return mapped objects directly — does NOT call
+    _resolvePosition (BUG: lastTradeResult not updated)
+  → Saves to localStorage trade history (last 100 via slice(-100))
+    (BUG: slice(-100) drops new entries at capacity)
 ```
+
+### Key: No setTimeout is used — all expiry is tick-driven via checkExpiry().
+All positions use absolute `expiresAt` timestamps that survive page refresh.
 
 ## Brokers Reference
 

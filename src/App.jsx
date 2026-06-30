@@ -100,13 +100,14 @@ export default function App() {
       if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
       let candles = store.get(tab.timeframe)
       if (!candles || candles.length === 0) {
-        candles = [{ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 0 }]
+        candles = [{ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 1 }]
       }
 
       const last = candles[candles.length - 1]
       if (!last || last.time !== alignedT) {
-        if (last) last.close = tickPrice
-        candles.push({ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 0 })
+        // New candle period — don't touch the old candle's close.
+        // It was already set correctly by the last tick of that period.
+        candles.push({ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 1 })
         if (candles.length > MAX_CANDLES) candles.shift()
       } else {
         last.high = Math.max(last.high, tickPrice)
@@ -148,6 +149,11 @@ export default function App() {
       const trimmed = merged.length > MAX_CANDLES ? merged.slice(merged.length - MAX_CANDLES) : merged
 
       store.set(tab.timeframe, trimmed)
+      // Mark timeframe as having real history — enables handleTimeframeChange
+      // to use cached candles instead of re-fetching on every switch.
+      let ready = historyReadyRef.current.get(tab.id)
+      if (!ready) { ready = new Set(); historyReadyRef.current.set(tab.id, ready) }
+      ready.add(tab.timeframe)
       syncCandlesToTab(tab.id, tab.timeframe, trimmed)
     })
   }, [syncCandlesToTab])
