@@ -219,6 +219,41 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
   })
   const [mgStepIndex, setMgStepIndex] = useState(-1)
 
+  // ── D'Alembert state (unit-based step strategy) ──
+  const [daEnabled, setDaEnabled] = useState(() => {
+    try { return localStorage.getItem('autobot_da_enabled') === 'true' } catch { return false }
+  })
+  const [daIsAuto, setDaIsAuto] = useState(() => {
+    try { return localStorage.getItem('autobot_da_auto') !== 'false' } catch { return true }
+  })
+  const [daUnit, setDaUnit] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_unit')) || 5 } catch { return 5 }
+  })
+  const [daInitialStake, setDaInitialStake] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_init')) || 10 } catch { return 10 }
+  })
+  const [daTakeProfit, setDaTakeProfit] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_tp')) || 100 } catch { return 100 }
+  })
+  const [daStopLoss, setDaStopLoss] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_sl')) || 100 } catch { return 100 }
+  })
+  const [daMaxStake, setDaMaxStake] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_max')) || 0 } catch { return 0 }
+  })
+  const [daMaxContracts, setDaMaxContracts] = useState(() => {
+    try { return parseInt(localStorage.getItem('autobot_da_maxc')) || 0 } catch { return 0 }
+  })
+  const [daCurrentStake, setDaCurrentStake] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_cur')) || 0 } catch { return 0 }
+  })
+  const [daCumulativePnl, setDaCumulativePnl] = useState(() => {
+    try { return parseFloat(localStorage.getItem('autobot_da_pnl')) || 0 } catch { return 0 }
+  })
+  const [daStepCount, setDaStepCount] = useState(() => {
+    try { return parseInt(localStorage.getItem('autobot_da_step')) || 0 } catch { return 0 }
+  })
+
   // ── Compounding state (profit reinvestment) ──
   const [cpEnabled, setCpEnabled] = useState(() => {
     try { return localStorage.getItem('autobot_cp_enabled') === 'true' } catch { return false }
@@ -265,6 +300,15 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
   const persistCpMaxSteps = (v) => { setCpMaxSteps(v); try { localStorage.setItem('autobot_cp_maxsteps', String(v)) } catch {} }
   const persistCpSteps = (v) => { setCpSteps(v); try { localStorage.setItem('autobot_cp_steps', JSON.stringify(v)) } catch {} }
   const persistCpStepsOn = (v) => { setCpStepsOn(v); try { localStorage.setItem('autobot_cp_steps_on', JSON.stringify(v)) } catch {} }
+  // Persist helpers — D'Alembert
+  const persistDa = (v) => { setDaEnabled(v); try { localStorage.setItem('autobot_da_enabled', String(v)) } catch {} }
+  const persistDaAuto = (v) => { setDaIsAuto(v); try { localStorage.setItem('autobot_da_auto', String(v)) } catch {} }
+  const persistDaUnit = (v) => { setDaUnit(v); try { localStorage.setItem('autobot_da_unit', String(v)) } catch {} }
+  const persistDaInitial = (v) => { setDaInitialStake(v); try { localStorage.setItem('autobot_da_init', String(v)) } catch {} }
+  const persistDaTP = (v) => { setDaTakeProfit(v); try { localStorage.setItem('autobot_da_tp', String(v)) } catch {} }
+  const persistDaSL = (v) => { setDaStopLoss(v); try { localStorage.setItem('autobot_da_sl', String(v)) } catch {} }
+  const persistDaMax = (v) => { setDaMaxStake(v); try { localStorage.setItem('autobot_da_max', String(v)) } catch {} }
+  const persistDaMaxC = (v) => { setDaMaxContracts(v); try { localStorage.setItem('autobot_da_maxc', String(v)) } catch {} }
 
   // ── Persist trade defaults ──
   useEffect(() => { try { localStorage.setItem('autobot_trade_amount', amount) } catch {} }, [amount])
@@ -316,6 +360,44 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
       }
     }
 
+    // ── D'Alembert: +unit on loss, -unit on win, never below initial ──
+    if (daEnabled && daIsAuto) {
+      const currentStake = daCurrentStake || daInitialStake
+      const unit = daUnit || 5
+      const maxStake = daMaxStake || 0
+      const maxContracts = daMaxContracts || 0
+      const pnl = daCumulativePnl + (lastTradeProfit || 0)
+      setDaCumulativePnl(pnl)
+
+      // Stop conditions
+      if (daTakeProfit > 0 && pnl >= daTakeProfit) {
+        setDaEnabled(false)
+        addToast(`D'Alembert TP hit: +$${pnl.toFixed(2)}`, 'success')
+      } else if (daStopLoss > 0 && pnl <= -daStopLoss) {
+        setDaEnabled(false)
+        addToast(`D'Alembert SL hit: -$${Math.abs(pnl).toFixed(2)}`, 'error')
+      } else if (maxContracts > 0 && daStepCount + 1 >= maxContracts) {
+        setDaEnabled(false)
+        addToast(`D'Alembert max contracts (${maxContracts}) reached`, 'error')
+      } else if (lastTradeResult === 'loss') {
+        const next = currentStake + unit
+        if (maxStake > 0 && next > maxStake) {
+          // Exceeded max — reset to initial
+          setDaCurrentStake(daInitialStake)
+          setAmount(String(Math.min(balance, daInitialStake)))
+        } else {
+          setDaCurrentStake(next)
+          setAmount(String(Math.min(balance, parseFloat(next.toFixed(2)))))
+        }
+        setDaStepCount(prev => prev + 1)
+      } else if (lastTradeResult === 'win') {
+        const next = Math.max(daInitialStake, currentStake - unit)
+        setDaCurrentStake(next)
+        setAmount(String(Math.min(balance, parseFloat(next.toFixed(2)))))
+        setDaStepCount(prev => prev + 1)
+      }
+    }
+
     // ── Compounding: triggers on win, resets on loss ──
     if (cpEnabled && cpIsAuto) {
       if (lastTradeResult === 'win') {
@@ -357,6 +439,25 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
     })
   }
   const cpReset = () => { setCpStepIndex(-1); setAmount(String(baseAmount || 100)) }
+
+  const daReset = () => {
+    setDaCurrentStake(daInitialStake)
+    setDaCumulativePnl(0)
+    setDaStepCount(0)
+    setAmount(String(daInitialStake))
+  }
+
+  // Initialize D'Alembert state when enabled
+  useEffect(() => {
+    if (daEnabled && daCurrentStake === 0) {
+      setDaCurrentStake(daInitialStake)
+      setAmount(String(daInitialStake))
+    }
+  }, [daEnabled])
+  useEffect(() => { setDaStepCount(0); setDaCumulativePnl(0) }, [daEnabled])
+  useEffect(() => { try { localStorage.setItem('autobot_da_cur', String(daCurrentStake)) } catch {} }, [daCurrentStake])
+  useEffect(() => { try { localStorage.setItem('autobot_da_pnl', String(daCumulativePnl)) } catch {} }, [daCumulativePnl])
+  useEffect(() => { try { localStorage.setItem('autobot_da_step', String(daStepCount)) } catch {} }, [daStepCount])
 
   const handleTrade = useCallback((direction) => {
     const amt = parseFloat(amount)
@@ -671,6 +772,48 @@ export default function TradePanel({ selectedAsset, assets, positions, balance, 
                     {mgStepIndex === -1 ? `Base: $${baseAmount || 100} · waiting for loss`
                       : mgIsAuto ? `Loss ${mgStepIndex + 1}/${mgMaxSteps} · Next: $${((parseFloat(amount) || baseAmount) * mgMultiplier).toFixed(2)}`
                       : `Loss ${mgStepIndex + 1}/${mgSteps.length} · Current: $${mgSteps[mgStepIndex]}`}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── D'Alembert (Unit Step Strategy) ── */}
+            <div className={`tp-sub ${daEnabled ? 'active' : ''}`}>
+              <div className="tp-sub-hdr" onClick={() => persistDa(!daEnabled)}>
+                <span className="tp-sub-hdr-label">D'Alembert</span>
+                <button className={`tp-sub-badge ${daEnabled ? 'on-danger' : 'off'}`}
+                  onClick={e => { e.stopPropagation(); persistDa(!daEnabled) }}>
+                  {daEnabled ? 'ON' : 'OFF'}
+                </button>
+                {showAdvanced ? <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />}
+              </div>
+              {daEnabled && (
+                <div className="tp-sub-body">
+                  <div className="tp-sub-seg">
+                    <button className={daIsAuto ? 'on' : ''} onClick={() => persistDaAuto(true)}>Auto</button>
+                    <button className={!daIsAuto ? 'on' : ''} onClick={() => persistDaAuto(false)}>Manual</button>
+                  </div>
+                  <div className="tp-sub-field" style={{ flexWrap: 'wrap', gap: 4 }}>
+                    <label>Unit</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daUnit} min="1" max="1000" step="1" onChange={e => persistDaUnit(parseFloat(e.target.value) || 5)} />
+                    <label>Init</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daInitialStake} min="1" max="10000" step="1" onChange={e => persistDaInitial(parseFloat(e.target.value) || 10)} />
+                    <label>TP</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daTakeProfit} min="0" max="100000" step="10" onChange={e => persistDaTP(parseFloat(e.target.value) || 100)} />
+                    <label>SL</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daStopLoss} min="0" max="100000" step="10" onChange={e => persistDaSL(parseFloat(e.target.value) || 100)} />
+                  </div>
+                  <div className="tp-sub-field" style={{ flexWrap: 'wrap', gap: 4 }}>
+                    <label>Max stake</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 56 }} value={daMaxStake || ''} min="0" max="100000" step="10" placeholder="Off" onChange={e => persistDaMax(parseFloat(e.target.value) || 0)} />
+                    <label>Max contracts</label>
+                    <input type="number" className="tp-sub-input" style={{ width: 44 }} value={daMaxContracts || ''} min="0" max="100" step="1" placeholder="Off" onChange={e => persistDaMaxC(parseInt(e.target.value) || 0)} />
+                    <button onClick={daReset} style={{ padding: '4px 10px', borderRadius: 5, background: 'var(--bg-input)', border: '1px solid var(--border-default)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 11, marginLeft: 'auto' }}>Reset</button>
+                  </div>
+                  <div className="tp-sub-hint">
+                    {daIsAuto
+                      ? `Stake: $${(daCurrentStake || daInitialStake).toFixed(2)} · ${daStepCount} trades · P&L: ${daCumulativePnl >= 0 ? '+' : ''}$${daCumulativePnl.toFixed(2)}`
+                      : `Unit: $${daUnit.toFixed(2)} · Init: $${daInitialStake.toFixed(2)} · Stake: $${(daCurrentStake || daInitialStake).toFixed(2)}`}
                   </div>
                 </div>
               )}
