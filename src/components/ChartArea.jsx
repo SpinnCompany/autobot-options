@@ -401,53 +401,84 @@ export default function ChartArea({ selectedAsset, assets, tabs = [], activeTabI
           cursor: drawingMode !== 'off' ? 'crosshair' : cursorClass,
           overflow: 'hidden',
         }}>
-          {/* Asset info overlay — top-left of chart */}
-          <div style={{
-            position: 'absolute', top: 8, left: 12, zIndex: 10, pointerEvents: 'none',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 6,
-              background: `linear-gradient(135deg, ${assetColor}, ${assetColor}dd)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: 700, color: '#fff',
-            }}>
-              {currentAsset?.icon || '◆'}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                {selectedAsset}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                  {latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
-                </span>
-                <span style={{
-                  fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
-                  color: isUp ? 'var(--success)' : 'var(--danger)',
+          {mappedCandles.length > 0 ? (
+            <>
+              {/* Asset info overlay — top-left of chart */}
+              <div style={{
+                position: 'absolute', top: 8, left: 12, zIndex: 10, pointerEvents: 'none',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 6,
+                  background: `linear-gradient(135deg, ${assetColor}, ${assetColor}dd)`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, fontWeight: 700, color: '#fff',
                 }}>
-                  {isUp ? '+' : ''}{priceChange.toFixed(5)}
-                </span>
+                  {currentAsset?.icon || '◆'}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+                    {selectedAsset}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {latestPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
+                    </span>
+                    <span style={{
+                      fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+                      color: isUp ? 'var(--success)' : 'var(--danger)',
+                    }}>
+                      {isUp ? '+' : ''}{priceChange.toFixed(5)}
+                    </span>
+                  </div>
+                </div>
               </div>
+              <CanvasChart
+                key={`${selectedAsset}|${timeframe}|${chartResetKey}`}
+                candles={mappedCandles}
+                decimals={5}
+                chartType={canvasChartType}
+                persistKey={`${selectedAsset}|${timeframe}`}
+                resetKey={chartResetKey}
+                tfMs={TF_MAP[timeframe] || 60000}
+                showGrid={true}
+                marketOpen={true}
+                indicators={indicators}
+                drawingMode={drawingMode}
+                tradeMarkers={tradeMarkers}
+                volumeProfile={volumeProfile}
+                mtfCandles={mtfCandles}
+                orderBook={orderBook}
+                customIndicators={customIndData}
+              />
+            </>
+          ) : (
+            /* Loading placeholder — matches trading-charts v-else placeholder-glow pattern.
+               CanvasChart is NOT mounted until data arrives, so there is no
+               empty→populated transition. The chart appears fully formed. */
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex',
+              flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              background: 'var(--chart-bg, #0d0f14)',
+            }}>
+              <div style={{
+                width: 60, height: 60, borderRadius: '50%',
+                border: '2px solid var(--border-default, rgba(255,255,255,0.08))',
+                borderTopColor: 'var(--brand, #f57b00)',
+                animation: 'spin 0.8s linear infinite',
+                marginBottom: 16,
+              }} />
+              <span style={{
+                fontSize: 13, fontWeight: 500,
+                color: 'var(--text-secondary, #8b8fa8)',
+              }}>Loading market data…</span>
+              <span style={{
+                fontSize: 11, fontWeight: 400,
+                color: 'var(--text-muted, #5a5e72)',
+                marginTop: 4,
+              }}>Chart will appear when history arrives</span>
             </div>
-          </div>
-          <CanvasChart
-            candles={mappedCandles}
-            decimals={5}
-            chartType={canvasChartType}
-            persistKey={`${selectedAsset}|${timeframe}`}
-            resetKey={chartResetKey}
-            tfMs={TF_MAP[timeframe] || 60000}
-            showGrid={true}
-            marketOpen={true}
-            indicators={indicators}
-            drawingMode={drawingMode}
-            tradeMarkers={tradeMarkers}
-            volumeProfile={volumeProfile}
-            mtfCandles={mtfCandles}
-            orderBook={orderBook}
-            customIndicators={customIndData}
-          />
+          )}
         </div>
       ) : (
         /* Multi-chart grid */

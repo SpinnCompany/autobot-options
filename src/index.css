@@ -1380,6 +1380,10 @@ body {
     overflow-y: auto;
   }
 }
+/* ── Chart loading spinner ── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 /* ── Confirmation pulse animation ── */
 @keyframes pulse-brand {
   0%, 100% { box-shadow: 0 0 0 0 rgba(245, 123, 0, 0.4); }

@@ -125,8 +125,17 @@ export const CanvasChart = ({
     if (stored > 0) return stored;
     return Math.min(80, candles.length || 80);
   }, [getStoredZoom, candles.length]);
-  const zoomTarget = useRef(0);
-  const [initialZoomDone, setInitialZoomDone] = useState(false);
+  // CanvasChart now only mounts when data is already loaded (trading-charts pattern).
+  // Initialize zoom immediately — no useEffect delay that causes a visible jump.
+  const zoomTarget = useRef((function () {
+    try {
+      if (persistKey) {
+        const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
+        if (raw) { const data = JSON.parse(raw); const v = data[persistKey]; if (v > 0) return v; }
+      }
+    } catch { /* noop */ }
+    return Math.min(80, candles.length || 80);
+  })());
   const zoomVelocity = useRef(0);
   const panOffset = useRef(0);
   const panVelocity = useRef(0);
@@ -168,10 +177,11 @@ export const CanvasChart = ({
   const rafId = useRef(0);
   const needsRedraw = useRef(true);
   const frameFnRef = useRef(() => {});
-  // First-render gate: skip ALL animation on initial data arrival.
-  // After the first full frame renders, subsequent ticks use smooth interpolation.
-  // This matches trading-charts' d3.join() enter-vs-update pattern.
-  const firstRenderRef = useRef(true);
+  // First-render gate: skip ALL animation on initial data arrival AND the first
+  // tick update after mount. Only the third data change onward uses interpolation.
+  // This matches trading-charts where chart() creates instantly, then update()
+  // adds transitions — but our ticks arrive faster so we skip one extra frame.
+  const skipAnimRef = useRef(2); // countdown: 2 → 1 → 0 (then interpolation enabled)
 
   /* ── candlesRef — stable ref for hot-path reads, avoids re-creating callbacks every tick ── */
   const candlesRef = useRef(candles);
@@ -196,7 +206,7 @@ export const CanvasChart = ({
 
   /* ── Interpolated candles: smooth slide + OHLC transition (skipped on first render) ── */
   const getInterpolatedCandles = useCallback((visible) => {
-    if (noSmooth || firstRenderRef.current) return visible;
+    if (noSmooth || skipAnimRef.current > 0) return visible;
     // Full-set slide transition (new candle formed)
     const ct = candlesTransitionRef.current;
     if (ct) {
@@ -1157,8 +1167,9 @@ export const CanvasChart = ({
     }
 
     needsRedraw.current = false;
-    // First render complete — enable smooth interpolation for subsequent updates
-    firstRenderRef.current = false;
+    // Count down animation gate: frame 1 (mount) + frame 2 (first tick) = instant.
+    // Frame 3 onward = smooth interpolation enabled.
+    if (skipAnimRef.current > 0) skipAnimRef.current--;
 
     /* Snap layout to state for JSX crosshair — only update when values actually change */
     const prevLayout = prevLayoutRef.current;
@@ -1180,7 +1191,7 @@ export const CanvasChart = ({
   /* ── rAF-driven change detection (independent of React render ticks) ── */
   const detectDataChanges = useCallback(() => {
     const candles = candlesRef.current
-    if (candles.length === 0) { interpRef.current = null; lastCandleRef.current = null; firstRenderRef.current = true; return }
+    if (candles.length === 0) { interpRef.current = null; lastCandleRef.current = null; skipAnimRef.current = 2; return }
 
     const latest = candles[candles.length - 1]
     const firstT = candles[0]?.t || 0
@@ -1198,7 +1209,7 @@ export const CanvasChart = ({
         lastCandleRef.current = null; interpRef.current = null
         candlesTransitionRef.current = null; prevCandlesRef.current = []
         smoothBoundsRef.current = null
-        firstRenderRef.current = true  // re-enable instant-render gate
+        skipAnimRef.current = 2  // re-enable instant-render gate
         setInitialZoomDone(false)
         dataSnapshotRef.current = { key, length: candles.length, lastT: latest.t }
         needsRedraw.current = true
@@ -1323,17 +1334,6 @@ export const CanvasChart = ({
     setInitialZoomDone(true);
     needsRedraw.current = true;
   }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  /* ── Initial zoom: show most recent ~80 candles, not max zoom-out ── */
-  useEffect(() => {
-    if (!initialZoomDone && candles.length > 0) {
-      zoomTarget.current = getInitialZoom();
-      panOffset.current = 0;
-      panVelocity.current = 0;
-      setInitialZoomDone(true);
-      needsRedraw.current = true;
-    }
-  }, [candles.length, initialZoomDone, getInitialZoom]);
 
   /* ═══════════════ INPUT HANDLERS ═══════════════ */
 
