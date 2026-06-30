@@ -1,0 +1,31 @@
+version: "3.9"
+
+# ─── AutobotOptions — Standalone Docker Compose ───
+#
+# For deployment independent of the main AutoBotWeb stack.
+# Uses external autobot-network so it can coexist with other services.
+#
+# Quick start:
+#   docker compose up -d --build
+#
+# Domain: options.autobotsignal.io
+# Port:   8095
+
+services:
+
+  autobot-options:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_WS_URL: ${VITE_WS_URL:-}
+    container_name: autobot-options
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:${OPTIONS_PORT:-8095}:80"
+    networks:
+      - autobot-network
+
+networks:
+  autobot-network:
+    external: true
