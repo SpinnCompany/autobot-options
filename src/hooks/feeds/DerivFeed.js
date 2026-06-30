@@ -7,11 +7,11 @@
  * The proxy handles the raw Deriv protocol. This adapter speaks a clean
  * JSON protocol to the proxy: {type, symbols, ...}
  *
- * Set VITE_WS_URL env var to the proxy URL. Leave empty for demo mode
- * (simulated prices via PriceFeedEngine — no WebSocket connection).
+ * Dev:  ws://localhost:8091 (deriv-proxy running locally)
+ * Prod: wss://options.autobotsignal.io/ws (via nginx → deriv-proxy container)
  */
 
-const PROXY_URL = import.meta.env.VITE_WS_URL || ''
+const PROXY_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8091'
 
 export class DerivFeed {
   ws = null
@@ -41,11 +41,6 @@ export class DerivFeed {
   }
 
   connect() {
-    if (!PROXY_URL) {
-      // Demo mode — no WebSocket proxy configured. Skip connection.
-      this.onStatus?.('disconnected')
-      return
-    }
     this.intentionalClose = false
     this._connect()
   }
@@ -82,7 +77,6 @@ export class DerivFeed {
 
   /** Request OHLC history for a symbol. Uses a dedicated WebSocket per request. */
   fetchCandles(symbol, granularity, count = 200) {
-    if (!PROXY_URL) return  // demo mode — no proxy available
     const ws = new WebSocket(PROXY_URL)
     ws.onopen = () => {
       ws.send(JSON.stringify({ type: 'market:candles', symbol, granularity, count }))

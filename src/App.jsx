@@ -14,10 +14,9 @@ import BacktesterView from './components/BacktesterView'
 import { useSound } from './hooks/useSound'
 import { usePushNotifications } from './hooks/usePushNotifications'
 import { useMarketData } from './hooks/useMarketData'
-import { loadTradeHistory, TF_MAP, generateInitialAssets } from './data/mockData'
+import { loadTradeHistory, TF_MAP } from './data/mockData'
 import { getActiveEvents } from './data/economicCalendar'
 import { useDemoEngine, MAX_OPEN } from './engine/DemoEngine'
-import { PriceFeedEngine } from './engine/PriceFeedEngine'
 import { X, Plus, CandlestickChart, LayoutDashboard, History, Calendar, List, BookOpen, Grid3X3, Table2 } from 'lucide-react'
 
 const MAX_TABS = 8
@@ -31,13 +30,6 @@ export default function App() {
   // Assets: populated by Deriv on connect, or seeded from demo engine
   const [assets, setAssets] = useState([])
 
-  // Price feed engine — used when Deriv is unavailable (demo mode)
-  const priceFeedRef = useRef(null)
-
-  // Seed demo assets when Deriv doesn't connect within 2s
-  const demoSeededRef = useRef(false)
-  const [demoActive, setDemoActive] = useState(false)
-
   // ── Candle store — builds OHLC from every tick ──
   const candleStoreRef = useRef(new Map()) // tabId → Map<tf, candles[]>
   const MAX_CANDLES = 1440
@@ -47,29 +39,12 @@ export default function App() {
     const alignedNow = Math.floor(Date.now() / tfMs) * tfMs
     const candles = []
     const count = tf === '1m' ? 1440 : Math.floor(86400 / (tfMs / 1000))
-    // Match PriceFeedEngine volatility (0.001 = 0.1%) so seed + live candles look consistent
-    const vol = 0.001
-    // Simulate sub-ticks per candle (~2/sec × 60s = 120 sub-ticks for 1m)
-    const subTicks = Math.max(1, Math.floor(tfMs / 500))
-    let price = parseFloat((basePrice || 1).toFixed(5))
+    const price = parseFloat((basePrice || 1).toFixed(5))
+    // Flat baseline — no random noise. Real candles build from ticks, history fills via fetchCandles.
     for (let i = 0; i < count; i++) {
-      let open = price
-      let high = open
-      let low = open
-      // Generate sub-ticks within this candle
-      for (let s = 0; s < subTicks; s++) {
-        price = parseFloat((price + price * (Math.random() - 0.48) * vol / Math.sqrt(subTicks)).toFixed(7))
-        if (price > high) high = price
-        if (price < low) low = price
-      }
-      const close = price
       candles.push({
         time: alignedNow - (count - 1 - i) * tfMs,
-        open: parseFloat(open.toFixed(5)),
-        high: parseFloat(high.toFixed(5)),
-        low: parseFloat(low.toFixed(5)),
-        close: parseFloat(close.toFixed(5)),
-        v: Math.floor(Math.random() * 50) + 1,
+        open: price, high: price, low: price, close: price, v: 0,
       })
     }
     const store = candleStoreRef.current.get(tabId) || new Map()
@@ -429,84 +404,6 @@ export default function App() {
   const candleEpochRef = useRef({})
   const isReplayingRef = useRef(isReplaying)
   isReplayingRef.current = isReplaying
-
-  // ── Demo mode: seed assets & drive price updates ──
-  useEffect(() => {
-    if (demoSeededRef.current) return
-    const timer = setTimeout(() => {
-      if (assets.length > 0) return  // Deriv already provided assets
-      demoSeededRef.current = true
-      const seed = generateInitialAssets()
-      if (!priceFeedRef.current) priceFeedRef.current = new PriceFeedEngine()
-      setAssets(seed)
-      setDemoActive(true)
-      // Open first asset as initial tab with seeded candle history
-      if (tabs.length === 0 && seed.length > 0) {
-        const fa = seed[0]
-        const candles = seedDayHistory('tab-1', '1m', fa.price)
-        const priceHistory = candles.map(c => ({ time: c.time, price: c.close }))
-        const newTab = {
-          id: 'tab-1',
-          asset: fa.name,
-          priceHistory,
-          candleHistory: candles,
-          timeframe: '1m',
-        }
-        setTabs([newTab])
-        setActiveTabId('tab-1')
-      }
-    }, 2000)
-    return () => clearTimeout(timer)
-  }, [assets.length])
-
-  // Demo tick — update prices + build candles for chart
-  useEffect(() => {
-    if (!demoActive || !priceFeedRef.current) return
-    const interval = setInterval(() => {
-      const now = Date.now()
-
-      setAssets(prev => prev.map(a => {
-        const next = priceFeedRef.current.nextTick(a.price, a.volatility || 0.001, a.name)
-        const chg = a.price > 0 ? ((next - a.price) / a.price * 100) : 0
-        return { ...a, price: parseFloat(next.toFixed(5)), change: chg.toFixed(2) }
-      }))
-
-      // Push ticks to open tabs for chart rendering
-      const currentTabs = tabsRef.current
-      if (currentTabs.length === 0) return
-      const currentAssets = assetsRef.current
-      currentTabs.forEach(tab => {
-        const asset = currentAssets.find(a => a.name === tab.asset)
-        if (!asset || !asset.price) return
-        const tickPrice = asset.price
-        const tfMs = TF_MAP[tab.timeframe] || 60000
-        const alignedT = Math.floor(now / tfMs) * tfMs
-
-        let store = candleStoreRef.current.get(tab.id)
-        if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
-        let candles = store.get(tab.timeframe)
-        if (!candles || candles.length === 0) {
-          candles = seedDayHistory(tab.id, tab.timeframe, tickPrice)
-        }
-
-        const last = candles[candles.length - 1]
-        if (!last || last.time !== alignedT) {
-          if (last) last.close = tickPrice
-          candles.push({ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 1 })
-          if (candles.length > MAX_CANDLES) candles.shift()
-        } else {
-          last.high = Math.max(last.high, tickPrice)
-          last.low = Math.min(last.low, tickPrice)
-          last.close = tickPrice
-          last.v = (last.v || 0) + 1
-        }
-
-        store.set(tab.timeframe, candles)
-        syncCandlesToTab(tab.id, tab.timeframe, candles)
-      })
-    }, 500)
-    return () => clearInterval(interval)
-  }, [demoActive])
 
   // ── TP/SL & Alert checks on every price update ──
   useEffect(() => {
