@@ -4,16 +4,17 @@ You are working on **AutobotOptions**, a standalone professional binary options 
 
 ## ⚡ NEXT SESSION — Start Here
 
-**Session:** July 1, 2026 — Binance live data, full localStorage persistence, position expiry fix, icon rendering fix, secret cleanup. 37/46 gap audit items complete (80%).
+**Session:** June 30, 2026 — All 15 known bugs resolved. 37/46 gap audit items complete (80%). 9 backend-dependent features remain deferred.
 
-### New Since Last Session (June 30 → July 1)
-- **Binance live market data** — 441 USDT pairs streaming via binance-proxy (Docker, port 8097)
-- **Full localStorage persistence** — balance, open positions, tabs, all UI state survive refresh
-- **Position expiry fix** — absolute expiresAt timestamps, no duration extension on refresh
-- **AssetIcon component** — Binance CDN coin icons render as images in all panels
-- **Chrome PNA fix** — no more "access other apps and services" permission prompt
-- **Secret cleanup** — broker HTML snapshots removed from git history, .gitignore hardened
-- **Autonomous dev guide** — comprehensive CLAUDE.md with 15 known gotchas, 5 critical path flow diagrams with failure modes, step-by-step session start checklist, complete test commands for every subsystem, deploy commands for both proxies, full architecture diagram with dual-source data flow
+### New This Session (June 30)
+- **6 bugs resolved** — all 15 known gotchas now FIXED (zero open bugs):
+  - #6: autobot_tabs persistence strips candle data (prevents localStorage bloat)
+  - #7: _persist uses correct slice direction (newest entries survive at capacity)
+  - #8: TP/SL updates lastTradeResult/lastTradeProfit (martingale/compounding correct)
+  - #13: Dual-source candle guard (tabs store source, name+source matching)
+  - #14: Binance get_symbols defers until exchangeInfo loaded (no empty race)
+  - #15: DerivFeed HTTPS guard (prevents Chrome PNA permission prompts)
+- **CLAUDE.md updated** — all bug tables marked FIXED with resolution locations
 
 ### Architecture Decisions (ALL 10 RESOLVED ✅)
 1. Platform: Own broker, demo-only. Other brokers in ATS-Project desktop bot.
@@ -344,10 +345,10 @@ ssh gcp-vps@34.81.61.52 'docker logs binance-proxy --tail 3'
 
 | # | Bug | Root Cause | Symptom | Fix | Fixed |
 |---|-----|------------|---------|-----|-------|
-| 6 | **autobot_tabs persists entire candle history** | useEffect [App.jsx:235] serializes full tabs array including candleHistory[] (up to 1440 OHLC objects) | localStorage quota could be hit, slow serialization on every tick | Compress or omit candleHistory from tabs persistence; reconstruct from engine on load | OPEN |
-| 7 | **_persist slice(-100) drops new entries at capacity** | `merged.slice(-100)` keeps last 100. New entries prepended, so at capacity old entries survive and new ones are lost | Recently closed trades disappear from history | Use `.slice(0, 100)` or reverse merge order [DemoEngine.js:737] | OPEN |
-| 8 | **TP/SL close doesn't update lastTradeResult** | checkTP_SL returns mapped objects directly — never calls _resolvePosition | Martingale/compounding see stale lastTradeResult after TP/SL close | Duplicate lastTradeResult/lastTradeProfit/baseAmount updates in each TP/SL branch [DemoEngine.js:390-420] | OPEN |
-| 9 | **Completed candle close overwritten** | `if (last) last.close = tickPrice` on new period — closes previous candle with first tick of NEXT period | Final close of completed candle is wrong | Only write close when next tick arrives for a new period [App.jsx:108] | OPEN |
+| 6 | **autobot_tabs persists entire candle history** | useEffect [App.jsx:235] serializes full tabs array including candleHistory[] (up to 1440 OHLC objects) | localStorage quota could be hit, slow serialization on every tick | Strip candleHistory/priceHistory before persist; rebuild from live ticks + history fetch on restore [App.jsx:241-253] | FIXED |
+| 7 | **_persist slice(-100) drops new entries at capacity** | `merged.slice(-100)` keeps last 100. New entries prepended, so at capacity old entries survive and new ones are lost | Recently closed trades disappear from history | Use `.slice(0, 100)` [DemoEngine.js:737] | FIXED |
+| 8 | **TP/SL close doesn't update lastTradeResult** | checkTP_SL returns mapped objects directly — never calls _resolvePosition | Martingale/compounding see stale lastTradeResult after TP/SL close | Set lastTradeResult/lastTradeProfit/baseAmount in each TP/SL branch [DemoEngine.js:389-422] | FIXED |
+| 9 | **Completed candle close overwritten** | `if (last) last.close = tickPrice` on new period — closes previous candle with first tick of NEXT period | Final close of completed candle is wrong | Don't touch old candle close on new period [App.jsx:108] | FIXED |
 
 ### Data & Rendering Bugs
 
@@ -356,14 +357,14 @@ ssh gcp-vps@34.81.61.52 'docker logs binance-proxy --tail 3'
 | 10 | **Binance icons rendered as text** | Asset data stored raw CDN URL as string, no <img> tag | "https://cryptoicon-api.vercel.app/api/icon/..." shown in panels | AssetIcon component handles all 3 icon types with proper <img> rendering [AssetIcon.jsx] | Jul 1 |
 | 11 | **Secrets committed to git history** | docs/broker-html-snapshots/ contained scraped broker HTML with embedded Google API keys | Google API keys exposed in public repo | .gitignore excludes docs/broker-html-snapshots/ + cleanup of history | Jul 1 |
 | 12 | **git add -A committed artifacts** | Screenshots, Playwright MCP data, editor settings all in working tree | 229 files accidentally committed | .gitignore: .playwright-mcp/, screenshots/, .claude/settings.json | Jul 1 |
-| 13 | **Dual-source candle store corruption** | handleAssetTick matches tabs by `assetData.name`, both Deriv and Binance supply "Bitcoin" etc. | Same candleStoreRef[tabId][tf] receives interleaved ticks from BOTH sources | Key tabs by `name::source` composite, or ensure source is part of store lookup [App.jsx:94-95] | OPEN |
+| 13 | **Dual-source candle store corruption** | handleAssetTick matches tabs by `assetData.name`, both Deriv and Binance supply "Bitcoin" etc. | Same candleStoreRef[tabId][tf] receives interleaved ticks from BOTH sources | Tab stores source; handleAssetTick/handleCandles match name+source [App.jsx:94-98, 137-139] | FIXED |
 
 ### Proxy & Network Bugs
 
 | # | Bug | Root Cause | Symptom | Fix | Fixed |
 |---|-----|------------|---------|-----|-------|
-| 14 | **Binance empty symbols race** | binance-proxy.js starts WSS before fetchExchangeInfo completes. Client sends get_symbols, gets [] | Asset panel permanently empty — settled=true blocks retry | Defer get_symbols response until exchangeInfo loaded, or don't set settled=true for empty [binance-proxy.js:321 + useBinanceData.js:58] | OPEN |
-| 15 | **DerivFeed missing HTTPS guard** | Falls back to `ws://localhost:8091` on HTTPS, triggering mixed-content block + PNA | Connection never established, no errors shown | Add same getProxyUrl() pattern as BinanceFeed [DerivFeed.js:14] | OPEN |
+| 14 | **Binance empty symbols race** | binance-proxy.js starts WSS before fetchExchangeInfo completes. Client sends get_symbols, gets [] | Asset panel permanently empty — settled=true blocks retry | get_symbols defers until cachedSymbols ready; failure sets [] to unblock [binance-proxy.js:228-232] | FIXED |
+| 15 | **DerivFeed missing HTTPS guard** | Falls back to `ws://localhost:8091` on HTTPS, triggering mixed-content block + PNA | Connection never established, no errors shown | Added getProxyUrl() pattern matching BinanceFeed [DerivFeed.js:14-24] | FIXED |
 
 ## Test Commands (copy-paste to verify each subsystem)
 
