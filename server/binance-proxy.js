@@ -290,6 +290,10 @@ console.log(`[binance-proxy] Listening on port ${PORT}`);
 
 wss.on('connection', (client) => {
   frontendClients.add(client);
+  // Init empty subscription set — client receives NO ticks until it
+  // explicitly subscribes. Closes race window where new clients got
+  // flooded with all 441 ticks before their first subscribe message.
+  clientSubs.set(client, new Set());
   console.log(`[binance-proxy] Client connected (${frontendClients.size} total)`);
 
   // Send cached symbols immediately
