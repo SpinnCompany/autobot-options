@@ -234,6 +234,7 @@ export default function App() {
       const newTab = {
         id: 'tab-1',
         asset: fa.name,
+        source: fa.source || 'deriv',
         priceHistory: [],
         candleHistory: [],
         timeframe: '1m',
@@ -246,10 +247,10 @@ export default function App() {
       historyReadyRef.current.set('tab-1', readySet)
 
       if (fa.source === 'binance' && fa.brokerSymbol) {
-        binanceData.subscribe([fa.brokerSymbol])
+        binanceData.subscribe([fa.brokerSymbol], 'tab-1')
         binanceData.fetchCandles(fa.brokerSymbol, 60, 1440)
       } else if (fa.derivSymbol) {
-        marketData.subscribe([fa.derivSymbol])
+        marketData.subscribe([fa.derivSymbol], 'tab-1')
         marketData.fetchCandles(fa.derivSymbol, 60, 1440)
       }
     }
@@ -269,10 +270,10 @@ export default function App() {
         // Assign source to legacy tabs so handleAssetTick filtering works
         if (!tab.source) tab.source = asset.source
         if (asset.source === 'binance' && asset.brokerSymbol) {
-          binanceData.subscribe([asset.brokerSymbol])
+          binanceData.subscribe([asset.brokerSymbol], tab.id)
           binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
         } else if (asset.derivSymbol) {
-          marketData.subscribe([asset.derivSymbol])
+          marketData.subscribe([asset.derivSymbol], tab.id)
           marketData.fetchCandles(asset.derivSymbol, 60, 1440)
         }
       }
@@ -665,15 +666,25 @@ export default function App() {
     historyReadyRef.current.set(newTab.id, readySet)
 
     if (asset?.source === 'binance' && asset?.brokerSymbol) {
-      binanceData.subscribe([asset.brokerSymbol])
+      binanceData.subscribe([asset.brokerSymbol], newTab.id)
       binanceData.fetchCandles(asset.brokerSymbol, 60, 1440)
     } else if (asset?.derivSymbol) {
-      marketData.subscribe([asset.derivSymbol])
+      marketData.subscribe([asset.derivSymbol], newTab.id)
       marketData.fetchCandles(asset.derivSymbol, 60, 1440)
     }
   }, [tabs, assets, addToast, marketData, binanceData])
 
   const handleCloseTab = useCallback((tabId) => {
+    // Unsubscribe all symbols for this tab. Reference counting ensures
+    // we only tell the proxy to unsubscribe when NO remaining tabs need
+    // the symbol (e.g., two tabs viewing BTCUSDT → closing one keeps sub).
+    const tab = tabs.find(t => t.id === tabId)
+    if (tab?.source === 'binance') {
+      binanceData.unsubscribeAll(tabId)
+    } else if (tab?.source === 'deriv') {
+      marketData.unsubscribeAll(tabId)
+    }
+
     candleStoreRef.current.delete(tabId)
     historyReadyRef.current.delete(tabId)
     setChartResetKey(k => k + 1)
@@ -686,7 +697,7 @@ export default function App() {
       }
       return filtered
     })
-  }, [tabs, activeTabId])
+  }, [tabs, activeTabId, binanceData, marketData])
 
   const handleTabClick = useCallback((tabId) => {
     setActiveTabId(tabId)
@@ -761,6 +772,42 @@ export default function App() {
 
           {activeTab ? (<>
           <div className="chart-area-wrapper">
+            {/* ── Connection status bar ── */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '2px 14px',
+              fontSize: 10, color: 'var(--text-muted)',
+              borderBottom: '1px solid var(--bg-elevated)',
+              minHeight: 20,
+            }}>
+              {/* Binance status */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: binanceData.connected ? 'var(--success)' : 'var(--text-muted)',
+                  boxShadow: binanceData.connected ? '0 0 4px var(--success)' : 'none',
+                  transition: 'all 0.3s',
+                }} />
+                <span style={{ color: binanceData.connected ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                  Binance{binanceData.connected && binanceData.subCount > 0 ? ` (${binanceData.subCount})` : ''}
+                </span>
+              </span>
+              {/* Deriv status */}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: marketData.connected ? 'var(--success)' : 'var(--text-muted)',
+                  boxShadow: marketData.connected ? '0 0 4px var(--success)' : 'none',
+                  transition: 'all 0.3s',
+                }} />
+                <span style={{ color: marketData.connected ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                  Deriv{marketData.connected && marketData.subCount > 0 ? ` (${marketData.subCount})` : ''}
+                </span>
+              </span>
+              {/* Total connected feeds */}
+              <span style={{ marginLeft: 'auto', opacity: 0.6 }}>
+                {(binanceData.connected || marketData.connected) ? 'Live' : 'Connecting...'}
+              </span>
+            </div>
             <div className="tab-bar">
               {tabs.map(tab => (
                 <div
