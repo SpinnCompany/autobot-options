@@ -47,13 +47,24 @@ export default function App() {
     const alignedNow = Math.floor(Date.now() / tfMs) * tfMs
     const candles = []
     const count = tf === '1m' ? 1440 : Math.floor(86400 / (tfMs / 1000))
-    const price = parseFloat((basePrice || 1).toFixed(5))
-    // Flat baseline — no random noise. Real candles build from ticks, history fills via fetchCandles.
+    let price = parseFloat((basePrice || 1).toFixed(5))
+    // Random-walk seeded history — generates plausible-looking chart data
     for (let i = 0; i < count; i++) {
+      const volatility = price * 0.0003  // 0.03% per candle
+      const change = (Math.random() - 0.5) * volatility * 2
+      const open = price
+      const close = open + change
+      const high = Math.max(open, close) + Math.random() * volatility * 0.5
+      const low = Math.min(open, close) - Math.random() * volatility * 0.5
       candles.push({
         time: alignedNow - (count - 1 - i) * tfMs,
-        open: price, high: price, low: price, close: price, v: 0,
+        open: parseFloat(open.toFixed(5)),
+        high: parseFloat(high.toFixed(5)),
+        low: parseFloat(low.toFixed(5)),
+        close: parseFloat(close.toFixed(5)),
+        v: Math.floor(Math.random() * 50) + 1,
       })
+      price = close
     }
     const store = candleStoreRef.current.get(tabId) || new Map()
     store.set(tf, candles)
@@ -423,19 +434,20 @@ export default function App() {
       if (!priceFeedRef.current) priceFeedRef.current = new PriceFeedEngine()
       setAssets(seed)
       setDemoActive(true)
-      // Open first asset as initial tab
+      // Open first asset as initial tab with seeded candle history
       if (tabs.length === 0 && seed.length > 0) {
         const fa = seed[0]
+        const candles = seedDayHistory('tab-1', '1m', fa.price)
+        const priceHistory = candles.map(c => ({ time: c.time, price: c.close }))
         const newTab = {
           id: 'tab-1',
           asset: fa.name,
-          priceHistory: [],
-          candleHistory: [],
+          priceHistory,
+          candleHistory: candles,
           timeframe: '1m',
         }
         setTabs([newTab])
         setActiveTabId('tab-1')
-        seedDayHistory('tab-1', '1m', fa.price)
       }
     }, 2000)
     return () => clearTimeout(timer)
