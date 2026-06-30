@@ -37,45 +37,6 @@ export default function App() {
   // Seed demo assets when Deriv doesn't connect within 2s
   const demoSeededRef = useRef(false)
   const [demoActive, setDemoActive] = useState(false)
-  useEffect(() => {
-    if (demoSeededRef.current) return
-    const timer = setTimeout(() => {
-      if (assets.length > 0) return  // Deriv already provided assets
-      demoSeededRef.current = true
-      const seed = generateInitialAssets()
-      if (!priceFeedRef.current) priceFeedRef.current = new PriceFeedEngine()
-      setAssets(seed)
-      setDemoActive(true)
-      // Open first asset as initial tab
-      if (tabsRef.current.length === 0 && seed.length > 0) {
-        const fa = seed[0]
-        const newTab = {
-          id: 'tab-1',
-          asset: fa.name,
-          priceHistory: [],
-          candleHistory: [],
-          timeframe: '1m',
-        }
-        setTabs([newTab])
-        setActiveTabId('tab-1')
-        seedDayHistory('tab-1', '1m', fa.price)
-      }
-    }, 2000)
-    return () => clearTimeout(timer)
-  }, [assets.length])
-
-  // Drive demo price updates every 500ms when in demo mode
-  useEffect(() => {
-    if (!demoActive || !priceFeedRef.current) return
-    const interval = setInterval(() => {
-      setAssets(prev => prev.map(a => {
-        const next = priceFeedRef.current.nextTick(a.price, a.volatility || 0.001, a.name)
-        const chg = a.price > 0 ? ((next - a.price) / a.price * 100) : 0
-        return { ...a, price: parseFloat(next.toFixed(5)), change: chg.toFixed(2) }
-      }))
-    }, 500)
-    return () => clearInterval(interval)
-  }, [demoActive])
 
   // ── Candle store — builds OHLC from every tick ──
   const candleStoreRef = useRef(new Map()) // tabId → Map<tf, candles[]>
@@ -451,6 +412,83 @@ export default function App() {
   const candleEpochRef = useRef({})
   const isReplayingRef = useRef(isReplaying)
   isReplayingRef.current = isReplaying
+
+  // ── Demo mode: seed assets & drive price updates ──
+  useEffect(() => {
+    if (demoSeededRef.current) return
+    const timer = setTimeout(() => {
+      if (assets.length > 0) return  // Deriv already provided assets
+      demoSeededRef.current = true
+      const seed = generateInitialAssets()
+      if (!priceFeedRef.current) priceFeedRef.current = new PriceFeedEngine()
+      setAssets(seed)
+      setDemoActive(true)
+      // Open first asset as initial tab
+      if (tabs.length === 0 && seed.length > 0) {
+        const fa = seed[0]
+        const newTab = {
+          id: 'tab-1',
+          asset: fa.name,
+          priceHistory: [],
+          candleHistory: [],
+          timeframe: '1m',
+        }
+        setTabs([newTab])
+        setActiveTabId('tab-1')
+        seedDayHistory('tab-1', '1m', fa.price)
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [assets.length])
+
+  // Demo tick — update prices + build candles for chart
+  useEffect(() => {
+    if (!demoActive || !priceFeedRef.current) return
+    const interval = setInterval(() => {
+      const now = Date.now()
+
+      setAssets(prev => prev.map(a => {
+        const next = priceFeedRef.current.nextTick(a.price, a.volatility || 0.001, a.name)
+        const chg = a.price > 0 ? ((next - a.price) / a.price * 100) : 0
+        return { ...a, price: parseFloat(next.toFixed(5)), change: chg.toFixed(2) }
+      }))
+
+      // Push ticks to open tabs for chart rendering
+      const currentTabs = tabsRef.current
+      if (currentTabs.length === 0) return
+      const currentAssets = assetsRef.current
+      currentTabs.forEach(tab => {
+        const asset = currentAssets.find(a => a.name === tab.asset)
+        if (!asset || !asset.price) return
+        const tickPrice = asset.price
+        const tfMs = TF_MAP[tab.timeframe] || 60000
+        const alignedT = Math.floor(now / tfMs) * tfMs
+
+        let store = candleStoreRef.current.get(tab.id)
+        if (!store) { store = new Map(); candleStoreRef.current.set(tab.id, store) }
+        let candles = store.get(tab.timeframe)
+        if (!candles || candles.length === 0) {
+          candles = seedDayHistory(tab.id, tab.timeframe, tickPrice)
+        }
+
+        const last = candles[candles.length - 1]
+        if (!last || last.time !== alignedT) {
+          if (last) last.close = tickPrice
+          candles.push({ time: alignedT, open: tickPrice, high: tickPrice, low: tickPrice, close: tickPrice, v: 1 })
+          if (candles.length > MAX_CANDLES) candles.shift()
+        } else {
+          last.high = Math.max(last.high, tickPrice)
+          last.low = Math.min(last.low, tickPrice)
+          last.close = tickPrice
+          last.v = (last.v || 0) + 1
+        }
+
+        store.set(tab.timeframe, candles)
+        syncCandlesToTab(tab.id, tab.timeframe, candles)
+      })
+    }, 500)
+    return () => clearInterval(interval)
+  }, [demoActive])
 
   // ── TP/SL & Alert checks on every price update ──
   useEffect(() => {
