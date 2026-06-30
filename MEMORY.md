@@ -193,18 +193,47 @@ No polling. Each tick triggers redraw on next animation frame (~16ms).
 | rAF-driven change detection | `chart.js` update() | `detectDataChanges()` at 60fps in rAF loop |
 | History-before-render | `Chart.vue` klines → chart() | `historyReadyRef` gate, fetchCandles before render |
 
+### Binance Integration (2026-06-30)
+
+| Feature | File | Description |
+|---------|------|-------------|
+| binance-proxy | `server/binance-proxy.js` | WS proxy to Binance stream (:8092), dynamic exchangeInfo |
+| BinanceFeed | `src/hooks/feeds/BinanceFeed.js` | Browser WS adapter, same interface as DerivFeed |
+| binanceMapping | `src/data/binanceMapping.js` | Dynamic symbol normalization, CDN SVG icons, SVG circle fallback |
+| useBinanceData | `src/hooks/useBinanceData.js` | React hook wrapping BinanceFeed, 250ms batched price updates |
+| Dual-source App.jsx | `src/App.jsx` | Generic handleAssetTick/handleCandles, source-aware merge, BIN badges |
+| Zoom icons | `src/components/CanvasChart.jsx` | ZoomIn/ZoomOut lucide icons replacing +/− text |
+| D'Alembert | `src/components/TradePanel.jsx` | Unit-based step strategy matching Deriv auto_list_strategies |
+| Price throttling | `useMarketData.js`, `useBinanceData.js` | 250ms batched price updates, same-price skip guard |
+
+**Data flow (dual-source):**
+```
+Deriv WS → deriv-proxy (:8091) → DerivFeed → useMarketData ─┐
+Binance WS → binance-proxy (:8092) → BinanceFeed → useBinanceData ─┤
+                                                                   ├→ App.jsx → AssetPanel + ChartArea
+DemoEngine (simulated) ───────────────────────────────────────────┘
+```
+
+**Asset identity:** Composite key `${name}::${source}` — same display name from different sources is treated as separate assets with source badges.
+
+**Deriv strategies covered:**
+- ✅ Martingale (existing)
+- ✅ D'Alembert (new — unit, initial_stake, take_profit, stop_loss, max_stake, max_contracts)
+- ✅ Compounding (our own addition)
+
 ## Production Deployment (2026-06-30)
 
 | Component | Location | Port |
 |-----------|----------|------|
 | SPA (nginx alpine) | Docker: autobot-options | 8095→80 |
 | deriv-proxy (node:22) | Docker: deriv-proxy | 8096→8091 |
+| binance-proxy (node:22) | Docker: binance-proxy | 8097→8092 |
 | nginx (host) | GCP VM 34.81.61.52 | :80/:443 |
 | SSL | Let's Encrypt / certbot | auto-renew |
 
 **Domain:** https://options.autobotsignal.io
 **Repo:** github.com/SpinnCompany/autobot-options
-**Build arg:** `VITE_WS_URL=wss://options.autobotsignal.io/ws`
+**Build args:** `VITE_WS_URL=wss://options.autobotsignal.io/ws/deriv` `VITE_BINANCE_WS_URL=wss://options.autobotsignal.io/ws/binance`
 
 ### Critical Rules
 - **NEVER add simulation fallbacks** — all data is real Deriv data via deriv-proxy
